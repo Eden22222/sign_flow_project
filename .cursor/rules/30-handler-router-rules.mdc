@@ -1,0 +1,30 @@
+---
+description: Handler and router boundaries
+globs: ["internal/handler/**/*.go", "internal/router/**/*.go"]
+---
+
+# Handler / Router 分层约束
+
+## Router 规则
+- router 只负责注册路由
+- router 不写业务逻辑
+- router 不直接操作数据库
+- router 不写匿名复杂函数
+
+## Handler 规则
+- handler 负责：
+  - 解析 JSON / query / path 参数
+  - 调用 service
+  - 返回统一响应
+- handler 不负责：
+  - workflow 状态推进
+  - task 状态判断
+  - document version 更新
+  - 数据库写入细节
+
+## 响应风格
+优先使用统一 response 包返回
+
+## 请求结构
+当前阶段，请求结构体可以先定义在 service 或 handler 中；
+如果后续变多，再单独拆 dto 包。

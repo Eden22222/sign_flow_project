@@ -5,7 +5,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"sign_flow_project/interval/model"
+	"sign_flow_project/internal/model"
 	"sync"
 	"time"
 )

@@ -1,0 +1,54 @@
+---
+description: SignFlow project architecture and business constraints
+alwaysApply: true
+---
+
+# SignFlow 项目总规则
+
+这是一个“企业文件串行签署工作流系统”后端项目。
+
+## 业务背景
+系统解决企业内部“多人按顺序签署同一份文件”的问题。
+目标不是法律级电子签章，而是：
+- 严格串行签署
+- 防止文件覆盖
+- 保持版本递增
+- 让流程状态可追踪
+
+## 核心业务模型
+系统核心是 3 个模型：
+1. DocumentModel
+   - 表示文件
+   - 包含 title、current_version、status
+2. WorkflowModel
+   - 表示签署流程
+   - 包含 document_id、current_step、status
+3. TaskModel
+   - 表示某个签署人的当前任务
+   - 包含 workflow_id、signer_id、step_index、status
+
+## 当前阶段目标
+当前优先实现两个核心能力：
+1. 创建签署流程
+2. 提交签署并推进到下一步
+
+## 当前必须遵守的业务规则
+- 签署必须严格串行：A -> B -> C
+- 不允许并发签署
+- 涉及多个表写入时必须使用数据库事务
+- 当前阶段先不实现：PDF 合成、MinIO、邮件发送、JWT、复杂权限系统
+- 优先把 workflow 骨架跑通
+
+## 后端分层规则
+- router：只做路由注册
+- handler：只做参数解析、调用 service、返回响应
+- service：只做业务逻辑和流程编排
+- dao：只做数据库访问
+- model：只定义数据结构，不放业务方法
+- infra：放数据库初始化等基础设施
+
+## 禁止事项
+- 不要把业务逻辑写进 dao
+- 不要把数据库读写写进 handler
+- 不要在 router 中写匿名业务逻辑
+- 不要跳过 service 直接从 handler 调 dao 完成完整业务

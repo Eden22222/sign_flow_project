@@ -1,0 +1,49 @@
+---
+description: Workflow service business rules
+globs: ["internal/service/**/*.go"]
+---
+
+# Workflow Service 业务规则
+
+## 当前最重要的 service
+优先实现：
+- WorkflowService.CreateWorkflow
+- SigningService.Submit
+
+## CreateWorkflow 的业务要求
+CreateWorkflow 至少要完成：
+1. 创建 DocumentModel
+2. 创建 WorkflowModel
+3. 创建第一条 TaskModel（第一个 signer）
+4. 使用数据库事务保证三者一致性
+
+输入示例：
+- title
+- signers: ["A", "B", "C"]
+
+输出至少包含：
+- documentId
+- workflowId
+- firstSigner
+
+## Submit 的业务要求
+Submit 后续要完成：
+1. 找到当前 task
+2. 校验当前 signer 是否匹配
+3. 校验 task 状态是否允许提交
+4. 更新 task 为 signed
+5. 更新 document version + 1
+6. 推进 workflow current_step + 1
+7. 创建下一位 signer 的 task
+8. 如果没有下一位，则标记 workflow/document completed
+9. 全过程使用事务
+
+## 当前业务状态建议
+- document.status 可使用：draft / completed
+- workflow.status 可使用：pending / completed
+- task.status 可使用：pending / signed
+
+## 重要原则
+- 所有流程推进逻辑都放在 service
+- service 可以调用多个 dao
+- service 不直接写 HTTP 响应
