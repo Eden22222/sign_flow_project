@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"sign_flow_project/internal/model"
+	"strings"
 	"sync"
 	"time"
 )
@@ -27,10 +28,11 @@ func InitPostgres() (*gorm.DB, error) {
 		dbName := "signflow"
 		sslmode := "disable"
 		timeZone := "Asia/Shanghai"
+		clientEncoding := "UTF8"
 
 		dsn := fmt.Sprintf(
-			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
-			host, port, user, password, dbName, sslmode, timeZone)
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=%s client_encoding=%s",
+			host, port, user, password, dbName, sslmode, timeZone, clientEncoding)
 
 		gormConfig := &gorm.Config{
 			Logger: logger.Default.LogMode(logger.Error),
@@ -56,10 +58,22 @@ func InitPostgres() (*gorm.DB, error) {
 			return
 		}
 
+		// 显式设置会话编码，避免客户端连接编码被环境覆盖。
+		if err := gormDB.Exec("SET client_encoding TO 'UTF8'").Error; err != nil {
+			dbErr = fmt.Errorf("set client encoding failed: %w", err)
+			return
+		}
+
+		if err := ensureUTF8Database(gormDB); err != nil {
+			dbErr = err
+			return
+		}
+
 		if err := gormDB.AutoMigrate(
 			&model.DocumentModel{},
 			&model.TaskModel{},
 			&model.WorkflowModel{},
+			&model.WorkflowSignerModel{},
 		); err != nil {
 			dbErr = fmt.Errorf("auto migrate models failed: %w", err)
 			return
@@ -70,6 +84,24 @@ func InitPostgres() (*gorm.DB, error) {
 
 func GetPostgres() *gorm.DB {
 	return gormDB
+}
+
+func ensureUTF8Database(db *gorm.DB) error {
+	var encoding string
+	if err := db.Raw(
+		"SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = current_database()",
+	).Scan(&encoding).Error; err != nil {
+		return fmt.Errorf("check database encoding failed: %w", err)
+	}
+
+	if strings.ToUpper(encoding) != "UTF8" {
+		return fmt.Errorf(
+			"database encoding must be UTF8, current is %s; recreate database with UTF8, e.g. CREATE DATABASE signflow WITH ENCODING 'UTF8' TEMPLATE template0",
+			encoding,
+		)
+	}
+
+	return nil
 }
 
 // CheckDatabaseHealth 检查数据库健康状态

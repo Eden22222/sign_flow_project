@@ -1,0 +1,96 @@
+# =========================
+# Go build / test outputs
+# =========================
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.prof
+*.coverprofile
+coverage.out
+
+# Binary folders
+bin/
+dist/
+build/
+
+# =========================
+# Go modules / workspace
+# =========================
+vendor/
+go.work.sum
+
+# =========================
+# Environment files
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+tmp/
+temp/
+
+# =========================
+# IDE / Editor
+# =========================
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# =========================
+# OS generated files
+# =========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# =========================
+# Air / hot reload
+# =========================
+.air/
+tmp/main
+tmp/build-errors.log
+
+# =========================
+# Local runtime / uploads / storage
+# Adjust based on your project
+# =========================
+uploads/
+storage/
+runtime/
+
+# =========================
+# Database / backup files
+# If you want to commit init.sql, remove or refine these
+# =========================
+*.dump
+*.bak
+
+# =========================
+# Certificates / keys
+# =========================
+*.pem
+*.key
+*.crt
+*.p12
+
+# =========================
+# Test artifacts
+# =========================
+coverage/
+htmlcov/
+
+# =========================
+# Generated docs / misc
+# =========================
+*.pid
+*.seed

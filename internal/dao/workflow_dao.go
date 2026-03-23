@@ -80,3 +80,18 @@ func (d *workflowDaoImpl) SelectByID(id uint) (*model.WorkflowModel, error) {
 	}
 	return &workflow, nil
 }
+
+func (d *workflowDaoImpl) SelectByIDTx(tx *gorm.DB, id uint) (*model.WorkflowModel, error) {
+	if tx == nil {
+		return nil, errNilDB
+	}
+	workflow := model.WorkflowModel{}
+	res := tx.First(&workflow, id)
+	if res.Error != nil {
+		if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			log.Error(res.Error)
+		}
+		return nil, res.Error
+	}
+	return &workflow, nil
+}

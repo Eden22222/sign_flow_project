@@ -82,3 +82,18 @@ func (d *documentDaoImpl) SelectByID(id uint) (*model.DocumentModel, error) {
 	}
 	return &document, nil
 }
+
+func (d *documentDaoImpl) SelectByIDTx(tx *gorm.DB, id uint) (*model.DocumentModel, error) {
+	if tx == nil {
+		return nil, errNilDB
+	}
+	document := model.DocumentModel{}
+	res := tx.First(&document, id)
+	if res.Error != nil {
+		if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			log.Error(res.Error)
+		}
+		return nil, res.Error
+	}
+	return &document, nil
+}

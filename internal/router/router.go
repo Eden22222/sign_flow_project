@@ -7,8 +7,11 @@ import (
 )
 
 func RegisterRoutes(r *gin.Engine) {
-	admin := r.Group("/admin")
+	api := r.Group("/api/v1")
+	admin := api.Group("/admin")
 	{
 		admin.POST("/workflows", handler.WorkflowHandler.CreateWorkflow)
 	}
+
+	api.POST("/workflows/:workflowId/submit", handler.SigningHandler.Submit)
 }

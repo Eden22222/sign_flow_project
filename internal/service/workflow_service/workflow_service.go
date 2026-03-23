@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"strings"
 
 	"sign_flow_project/internal/dao"
 	infradb "sign_flow_project/internal/infra/db"
@@ -26,11 +27,16 @@ type CreateWorkflowResult struct {
 }
 
 func (s *workflowServiceImpl) CreateWorkflow(req CreateWorkflowRequest) (*CreateWorkflowResult, error) {
-	if req.Title == "" {
+	if strings.TrimSpace(req.Title) == "" {
 		return nil, fmt.Errorf("title is required")
 	}
 	if len(req.Signers) == 0 {
 		return nil, fmt.Errorf("at least one signer is required")
+	}
+	for i, signer := range req.Signers {
+		if strings.TrimSpace(signer) == "" {
+			return nil, fmt.Errorf("signer at index %d is empty", i)
+		}
 	}
 
 	db := infradb.GetPostgres()
@@ -42,9 +48,9 @@ func (s *workflowServiceImpl) CreateWorkflow(req CreateWorkflowRequest) (*Create
 
 	err := db.Transaction(func(tx *gorm.DB) error {
 		document := &model.DocumentModel{
-			Title:          req.Title,
+			Title:          strings.TrimSpace(req.Title),
 			CurrentVersion: 1,
-			Status:         "draft",
+			Status:         model.DocumentStatusDraft,
 		}
 		if err := dao.DocumentDao.CreateTx(tx, document); err != nil {
 			return err
@@ -53,17 +59,29 @@ func (s *workflowServiceImpl) CreateWorkflow(req CreateWorkflowRequest) (*Create
 		workflow := &model.WorkflowModel{
 			DocumentID:  document.ID,
 			CurrentStep: 1,
-			Status:      "pending",
+			Status:      model.WorkflowStatusPending,
 		}
 		if err := dao.WorkflowDao.CreateTx(tx, workflow); err != nil {
 			return err
 		}
 
+		workflowSigners := make([]*model.WorkflowSignerModel, 0, len(req.Signers))
+		for i, signerID := range req.Signers {
+			workflowSigners = append(workflowSigners, &model.WorkflowSignerModel{
+				WorkflowID: workflow.ID,
+				SignerID:   strings.TrimSpace(signerID),
+				StepIndex:  i + 1,
+			})
+		}
+		if err := dao.WorkflowSignerDao.CreateTx(tx, workflowSigners); err != nil {
+			return err
+		}
+
 		firstTask := &model.TaskModel{
 			WorkflowID: workflow.ID,
-			SignerID:   req.Signers[0],
+			SignerID:   strings.TrimSpace(req.Signers[0]),
 			StepIndex:  1,
-			Status:     "pending",
+			Status:     model.TaskStatusPending,
 		}
 		if err := dao.TaskDao.CreateTx(tx, firstTask); err != nil {
 			return err
@@ -72,7 +90,7 @@ func (s *workflowServiceImpl) CreateWorkflow(req CreateWorkflowRequest) (*Create
 		result = &CreateWorkflowResult{
 			DocumentID:  document.ID,
 			WorkflowID:  workflow.ID,
-			FirstSigner: req.Signers[0],
+			FirstSigner: strings.TrimSpace(req.Signers[0]),
 		}
 
 		return nil

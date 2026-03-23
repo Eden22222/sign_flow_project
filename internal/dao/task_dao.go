@@ -80,3 +80,21 @@ func (d *taskDaoImpl) SelectByID(id uint) (*model.TaskModel, error) {
 	}
 	return &task, nil
 }
+
+func (d *taskDaoImpl) SelectCurrentPendingByWorkflowIDTx(tx *gorm.DB, workflowID uint) (*model.TaskModel, error) {
+	if tx == nil {
+		return nil, errNilDB
+	}
+	task := model.TaskModel{}
+	res := tx.
+		Where("workflow_id = ? AND status = ?", workflowID, model.TaskStatusPending).
+		Order("step_index ASC").
+		First(&task)
+	if res.Error != nil {
+		if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			log.Error(res.Error)
+		}
+		return nil, res.Error
+	}
+	return &task, nil
+}
