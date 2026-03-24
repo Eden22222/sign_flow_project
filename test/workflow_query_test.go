@@ -186,7 +186,7 @@ func setupQueryTestEngineAndWorkflow(t *testing.T) (*gin.Engine, uint) {
 
 	gin.SetMode(gin.TestMode)
 
-	gdb, err := db.InitPostgres()
+	gdb, err := db.PostgresSetup()
 	if err != nil {
 		t.Fatalf("init postgres failed: %v", err)
 	}

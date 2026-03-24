@@ -2,37 +2,23 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"sign_flow_project/internal/infra/db"
+	"sign_flow_project/internal/middleware/logging"
 	"sign_flow_project/internal/router"
-
-	"github.com/gin-gonic/gin"
 )
 
-func main() {
-	_, err := db.InitPostgres()
+func init() {
+	logging.Setup()
+
+	_, err := db.PostgresSetup()
 	if err != nil {
 		log.Fatalf("init postgres failed: %v", err)
 	}
 	log.Println("database connected successfully")
+}
 
-	r := gin.Default()
-
-	r.GET("/health", func(c *gin.Context) {
-		if err := db.CheckDatabaseHealth(); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"message": "database unhealthy",
-				"error":   err.Error(),
-			})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"message": "ok",
-		})
-	})
-
-	router.RegisterRoutes(r)
+func main() {
+	r := router.InitRouter()
 
 	if err := r.Run(":8081"); err != nil {
 		log.Fatalf("server start failed: %v", err)

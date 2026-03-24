@@ -18,24 +18,29 @@ const (
 	ERROR       = http.StatusInternalServerError
 	SUCCESS     = http.StatusOK
 	BAD_REQUEST = http.StatusBadRequest
+	NOT_FOUND   = http.StatusNotFound
+	FORBIDDEN   = http.StatusForbidden
 )
 
-func Result(code int, data interface{}, msg string, c *gin.Context) {
-	c.JSON(http.StatusOK, Response{
+func nowMillis() int64 {
+	return time.Now().UnixMilli()
+}
+
+func write(c *gin.Context, httpStatus int, code int, data any, msg string) {
+	c.JSON(httpStatus, Response{
 		Code:      code,
 		Data:      data,
 		Msg:       msg,
-		Timestamp: time.Now().UnixMilli(),
+		Timestamp: nowMillis(),
 	})
 }
 
-func ResultWithStatus(status int, code int, data interface{}, msg string, c *gin.Context) {
-	c.JSON(status, Response{
-		Code:      code,
-		Data:      data,
-		Msg:       msg,
-		Timestamp: time.Now().UnixNano() / 1e6,
-	})
+func Result(code int, data any, msg string, c *gin.Context) {
+	write(c, http.StatusOK, code, data, msg)
+}
+
+func ResultWithStatus(status int, code int, data any, msg string, c *gin.Context) {
+	write(c, status, code, data, msg)
 }
 
 func Ok(c *gin.Context) {
@@ -62,10 +67,22 @@ func FailWithMessage(message string, c *gin.Context) {
 	Result(ERROR, nil, message, c)
 }
 
-func ForbiddenWithMessage(message string, c *gin.Context) {
-	ResultWithStatus(http.StatusForbidden, http.StatusForbidden, nil, message, c)
+func BadRequestWithMessage(message string, c *gin.Context) {
+	ResultWithStatus(BAD_REQUEST, BAD_REQUEST, nil, message, c)
 }
 
-func FailWithDetailed(data interface{}, message string, c *gin.Context) {
+func NotFoundWithMessage(message string, c *gin.Context) {
+	ResultWithStatus(NOT_FOUND, NOT_FOUND, nil, message, c)
+}
+
+func InternalErrorWithMessage(message string, c *gin.Context) {
+	ResultWithStatus(ERROR, ERROR, nil, message, c)
+}
+
+func ForbiddenWithMessage(message string, c *gin.Context) {
+	ResultWithStatus(FORBIDDEN, FORBIDDEN, nil, message, c)
+}
+
+func FailWithDetailed(data any, message string, c *gin.Context) {
 	Result(ERROR, data, message, c)
 }
