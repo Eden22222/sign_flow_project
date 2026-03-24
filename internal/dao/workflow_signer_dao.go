@@ -1,6 +1,7 @@
 package dao
 
 import (
+	"errors"
 	log "github.com/sirupsen/logrus"
 	"sign_flow_project/internal/model"
 
@@ -44,4 +45,24 @@ func (d *workflowSignerDaoImpl) SelectByWorkflowIDAndStepIndexTx(tx *gorm.DB, wo
 		return nil, err
 	}
 	return &signer, nil
+}
+
+func (d *workflowSignerDaoImpl) SelectByWorkflowID(workflowID uint) ([]model.WorkflowSignerModel, error) {
+	db, err := defaultDB()
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	var signers []model.WorkflowSignerModel
+	res := db.
+		Where("workflow_id = ?", workflowID).
+		Order("step_index ASC").
+		Find(&signers)
+	if res.Error != nil {
+		if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			log.Error(res.Error)
+		}
+		return nil, res.Error
+	}
+	return signers, nil
 }

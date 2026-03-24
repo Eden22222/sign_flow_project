@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -26,6 +27,7 @@ type CreateWorkflowResult struct {
 	FirstSigner string `json:"firstSigner"`
 }
 
+// create workflow
 func (s *workflowServiceImpl) CreateWorkflow(req CreateWorkflowRequest) (*CreateWorkflowResult, error) {
 	if strings.TrimSpace(req.Title) == "" {
 		return nil, fmt.Errorf("title is required")
@@ -101,4 +103,150 @@ func (s *workflowServiceImpl) CreateWorkflow(req CreateWorkflowRequest) (*Create
 	}
 
 	return result, nil
+}
+
+// detail result
+
+type WorkflowDetailResult struct {
+	WorkflowID      uint                 `json:"workflowId"`
+	DocumentID      uint                 `json:"documentId"`
+	Title           string               `json:"title"`
+	CurrentStep     int                  `json:"currentStep"`
+	WorkflowStatus  model.WorkflowStatus `json:"workflowStatus"`
+	DocumentStatus  model.DocumentStatus `json:"documentStatus"`
+	DocumentVersion int                  `json:"documentVersion"`
+	CurrentSignerID string               `json:"currentSignerId"`
+}
+
+type WorkflowTaskItem struct {
+	TaskID     uint             `json:"taskId"`
+	WorkflowID uint             `json:"workflowId"`
+	SignerID   string           `json:"signerId"`
+	StepIndex  int              `json:"stepIndex"`
+	Status     model.TaskStatus `json:"status"`
+}
+
+type WorkflowTaskListResult struct {
+	WorkflowID uint               `json:"workflowId"`
+	Tasks      []WorkflowTaskItem `json:"tasks"`
+}
+
+type WorkflowSignerItem struct {
+	SignerID  string `json:"signerId"`
+	StepIndex int    `json:"stepIndex"`
+}
+
+type WorkflowSignerListResult struct {
+	WorkflowID uint                 `json:"workflowId"`
+	Signers    []WorkflowSignerItem `json:"signers"`
+}
+
+func (s *workflowServiceImpl) GetDetail(workflowID uint) (*WorkflowDetailResult, error) {
+	if workflowID == 0 {
+		return nil, fmt.Errorf("workflowId is required")
+	}
+
+	workflow, err := dao.WorkflowDao.SelectByID(workflowID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("workflow not found")
+		}
+		return nil, err
+	}
+
+	document, err := dao.DocumentDao.SelectByID(workflow.DocumentID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("document not found")
+		}
+		return nil, err
+	}
+
+	currentSignerID := ""
+	currentTask, err := dao.TaskDao.SelectCurrentPendingByWorkflowID(workflowID)
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+	} else {
+		currentSignerID = currentTask.SignerID
+	}
+
+	return &WorkflowDetailResult{
+		WorkflowID:      workflow.ID,
+		DocumentID:      document.ID,
+		Title:           document.Title,
+		CurrentStep:     workflow.CurrentStep,
+		WorkflowStatus:  workflow.Status,
+		DocumentStatus:  document.Status,
+		DocumentVersion: document.CurrentVersion,
+		CurrentSignerID: currentSignerID,
+	}, nil
+}
+
+func (s *workflowServiceImpl) GetTasks(workflowID uint) (*WorkflowTaskListResult, error) {
+	if workflowID == 0 {
+		return nil, fmt.Errorf("workflowId is required")
+	}
+
+	_, err := dao.WorkflowDao.SelectByID(workflowID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("workflow not found")
+		}
+		return nil, err
+	}
+
+	tasks, err := dao.TaskDao.SelectByWorkflowID(workflowID)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]WorkflowTaskItem, 0, len(tasks))
+	for _, task := range tasks {
+		items = append(items, WorkflowTaskItem{
+			TaskID:     task.ID,
+			WorkflowID: task.WorkflowID,
+			SignerID:   task.SignerID,
+			StepIndex:  task.StepIndex,
+			Status:     task.Status,
+		})
+	}
+
+	return &WorkflowTaskListResult{
+		WorkflowID: workflowID,
+		Tasks:      items,
+	}, nil
+}
+
+func (s *workflowServiceImpl) GetSigners(workflowID uint) (*WorkflowSignerListResult, error) {
+	if workflowID == 0 {
+		return nil, fmt.Errorf("workflowId is required")
+	}
+
+	_, err := dao.WorkflowDao.SelectByID(workflowID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("workflow not found")
+		}
+		return nil, err
+	}
+
+	signers, err := dao.WorkflowSignerDao.SelectByWorkflowID(workflowID)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]WorkflowSignerItem, 0, len(signers))
+	for _, signer := range signers {
+		items = append(items, WorkflowSignerItem{
+			SignerID:  signer.SignerID,
+			StepIndex: signer.StepIndex,
+		})
+	}
+
+	return &WorkflowSignerListResult{
+		WorkflowID: workflowID,
+		Signers:    items,
+	}, nil
 }

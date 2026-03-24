@@ -98,3 +98,41 @@ func (d *taskDaoImpl) SelectCurrentPendingByWorkflowIDTx(tx *gorm.DB, workflowID
 	}
 	return &task, nil
 }
+
+func (d *taskDaoImpl) SelectCurrentPendingByWorkflowID(workflowID uint) (*model.TaskModel, error) {
+	db, err := defaultDB()
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	task := model.TaskModel{}
+	res := db.
+		Where("workflow_id = ? AND status = ?", workflowID, model.TaskStatusPending).
+		Order("step_index ASC").
+		First(&task)
+	if res.Error != nil {
+		if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			log.Error(res.Error)
+		}
+		return nil, res.Error
+	}
+	return &task, nil
+}
+
+func (d *taskDaoImpl) SelectByWorkflowID(workflowID uint) ([]model.TaskModel, error) {
+	db, err := defaultDB()
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	var tasks []model.TaskModel
+	res := db.
+		Where("workflow_id = ?", workflowID).
+		Order("step_index ASC").
+		Find(&tasks)
+	if res.Error != nil {
+		log.Error(res.Error)
+		return nil, res.Error
+	}
+	return tasks, nil
+}
