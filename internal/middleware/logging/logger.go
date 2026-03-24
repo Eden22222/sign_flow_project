@@ -1,13 +1,22 @@
 package logging
 
 import (
+	"bytes"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 )
 
-const RequestIDKey = "request_id"
+type responseWriter struct {
+	gin.ResponseWriter
+	body *bytes.Buffer
+}
+
+func (w *responseWriter) Write(data []byte) (int, error) {
+	w.body.Write(data)
+	return w.ResponseWriter.Write(data)
+}
 
 func Logger() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -17,6 +26,12 @@ func Logger() gin.HandlerFunc {
 		path := c.Request.URL.Path
 		rawQuery := c.Request.URL.RawQuery
 		clientIP := c.ClientIP()
+
+		writer := &responseWriter{
+			ResponseWriter: c.Writer,
+			body:           bytes.NewBufferString(""),
+		}
+		c.Writer = writer
 
 		c.Next()
 
@@ -28,16 +43,12 @@ func Logger() gin.HandlerFunc {
 			fullPath = path + "?" + rawQuery
 		}
 
-		requestID, _ := c.Get(RequestIDKey)
-		requestIDStr, _ := requestID.(string)
-
 		entry := log.WithFields(log.Fields{
-			"request_id": requestIDStr,
-			"method":     method,
-			"path":       fullPath,
-			"status":     statusCode,
-			"latency_ms": latency.Milliseconds(),
-			"client_ip":  clientIP,
+			"method":        method,
+			"path":          fullPath,
+			"latency_ms":    latency.Milliseconds(),
+			"client_ip":     clientIP,
+			"response_body": writer.body.String(),
 		})
 
 		if len(c.Errors) > 0 {
@@ -46,11 +57,17 @@ func Logger() gin.HandlerFunc {
 
 		switch {
 		case statusCode >= 500:
-			entry.Error("request completed")
+			entry.WithFields(log.Fields{
+				"result": "server_error",
+			}).Error("request failed")
 		case statusCode >= 400:
-			entry.Error("request completed")
+			entry.WithFields(log.Fields{
+				"result": "client_error",
+			}).Warn("request rejected")
 		default:
-			entry.Info("request completed")
+			entry.WithFields(log.Fields{
+				"result": "success",
+			}).Info("request completed")
 		}
 	}
 }

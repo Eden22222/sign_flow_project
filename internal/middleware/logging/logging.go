@@ -12,5 +12,6 @@ func Setup() {
 	log.SetFormatter(&log.TextFormatter{
 		FullTimestamp: true,
 		ForceColors:   true,
+		DisableQuote:  true,
 	})
 }

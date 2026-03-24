@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"sign_flow_project/internal/handler"
 	"sign_flow_project/internal/infra/db"
+	"sign_flow_project/internal/middleware"
 	"sign_flow_project/internal/middleware/logging"
 
 	"github.com/gin-gonic/gin"
@@ -14,6 +15,9 @@ func InitRouter() *gin.Engine {
 	r.Use(
 		logging.Logger(),
 		logging.Recovery(),
+
+		//TODO: 这里需要优化，后续要使用nginx反代解决跨域问题
+		middleware.CORS(),
 	)
 	r.GET("/health", healthCheck)
 
