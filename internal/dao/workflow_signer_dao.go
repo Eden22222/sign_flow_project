@@ -66,3 +66,21 @@ func (d *workflowSignerDaoImpl) SelectByWorkflowID(workflowID uint) ([]model.Wor
 	}
 	return signers, nil
 }
+
+func (d *workflowSignerDaoImpl) SelectByWorkflowIDTx(tx *gorm.DB, workflowID uint) ([]model.WorkflowSignerModel, error) {
+	if tx == nil {
+		return nil, errNilDB
+	}
+	var signers []model.WorkflowSignerModel
+	res := tx.
+		Where("workflow_id = ?", workflowID).
+		Order("step_index ASC").
+		Find(&signers)
+	if res.Error != nil {
+		if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			log.Error(res.Error)
+		}
+		return nil, res.Error
+	}
+	return signers, nil
+}

@@ -86,6 +86,7 @@ func PostgresSetup() (*gorm.DB, error) {
 
 		if err := gormDB.AutoMigrate(
 			&model.DocumentModel{},
+			&model.DocumentFieldModel{},
 			&model.TaskModel{},
 			&model.WorkflowModel{},
 			&model.WorkflowSignerModel{},

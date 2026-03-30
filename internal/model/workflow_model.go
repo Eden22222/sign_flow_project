@@ -10,6 +10,8 @@ type WorkflowModel struct {
 type WorkflowStatus string
 
 const (
+	WorkflowStatusDraft     WorkflowStatus = "draft"
 	WorkflowStatusPending   WorkflowStatus = "pending"
 	WorkflowStatusCompleted WorkflowStatus = "completed"
+	WorkflowStatusCancelled WorkflowStatus = "cancelled"
 )
