@@ -95,3 +95,32 @@ func (d *workflowDaoImpl) SelectByIDTx(tx *gorm.DB, id uint) (*model.WorkflowMod
 	}
 	return &workflow, nil
 }
+
+func (d *workflowDaoImpl) SelectPage(page int, pageSize int) ([]model.WorkflowModel, int64, error) {
+	db, err := defaultDB()
+	if err != nil {
+		log.Error(err)
+		return nil, 0, err
+	}
+
+	var total int64
+	countRes := db.Model(&model.WorkflowModel{}).Count(&total)
+	if countRes.Error != nil {
+		log.Error(countRes.Error)
+		return nil, 0, countRes.Error
+	}
+
+	offset := (page - 1) * pageSize
+	workflows := make([]model.WorkflowModel, 0)
+	listRes := db.
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&workflows)
+	if listRes.Error != nil {
+		log.Error(listRes.Error)
+		return nil, 0, listRes.Error
+	}
+
+	return workflows, total, nil
+}

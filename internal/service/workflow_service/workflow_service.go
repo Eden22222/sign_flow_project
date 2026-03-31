@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"sign_flow_project/internal/dao"
 	infradb "sign_flow_project/internal/infra/db"
@@ -532,6 +533,87 @@ type WorkflowSignerItem struct {
 type WorkflowSignerListResult struct {
 	WorkflowID uint                 `json:"workflowId"`
 	Signers    []WorkflowSignerItem `json:"signers"`
+}
+
+type WorkflowListItem struct {
+	WorkflowID     uint   `json:"workflowId"`
+	Title          string `json:"title"`
+	FileName       string `json:"fileName"`
+	DocumentStatus string `json:"documentStatus"`
+	Initiator      string `json:"initiator"`
+	SignerCount    int    `json:"signerCount"`
+	CurrentStep    int    `json:"currentStep"`
+	TotalSteps     int    `json:"totalSteps"`
+	WorkflowStatus string `json:"workflowStatus"`
+	CreatedAt      string `json:"createdAt"`
+}
+
+type WorkflowListResult struct {
+	List     []WorkflowListItem `json:"list"`
+	Total    int64              `json:"total"`
+	Page     int                `json:"page"`
+	PageSize int                `json:"pageSize"`
+}
+
+func (s *workflowServiceImpl) List(page int, pageSize int) (*WorkflowListResult, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	workflows, total, err := dao.WorkflowDao.SelectPage(page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+
+	list := make([]WorkflowListItem, 0, len(workflows))
+	for _, workflow := range workflows {
+		document, err := dao.DocumentDao.SelectByID(workflow.DocumentID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
+			return nil, err
+		}
+
+		signers, err := dao.WorkflowSignerDao.SelectByWorkflowID(workflow.ID)
+		if err != nil {
+			return nil, err
+		}
+		signerCount := len(signers)
+
+		list = append(list, WorkflowListItem{
+			WorkflowID:     workflow.ID,
+			Title:          document.Title,
+			FileName:       document.FileName,
+			DocumentStatus: document.Status,
+			Initiator:      "",
+			SignerCount:    signerCount,
+			CurrentStep:    workflow.CurrentStep,
+			TotalSteps:     signerCount,
+			WorkflowStatus: string(workflow.Status),
+			CreatedAt:      formatWorkflowCreatedAt(workflow.CreatedAt),
+		})
+	}
+
+	return &WorkflowListResult{
+		List:     list,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
+}
+
+func formatWorkflowCreatedAt(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return t.Format("2006-01-02 15:04:05")
 }
 
 func (s *workflowServiceImpl) GetDetail(workflowID uint) (*WorkflowDetailResult, error) {

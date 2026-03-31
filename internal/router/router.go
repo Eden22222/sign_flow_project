@@ -40,6 +40,7 @@ func RegisterRoutes(r *gin.Engine) {
 	// 兼容旧接口：先不让老前端立刻挂掉
 	api.POST("/createWorkflow", handler.WorkflowHandler.CreateWorkflow)
 
+	api.GET("/workflows", handler.WorkflowHandler.List)
 	api.GET("/workflows/:workflowId", handler.WorkflowHandler.GetDetail)
 	api.GET("/workflows/:workflowId/tasks", handler.WorkflowHandler.GetTasks)
 	api.GET("/workflows/:workflowId/signers", handler.WorkflowHandler.GetSigners)

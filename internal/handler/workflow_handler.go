@@ -65,6 +65,37 @@ func (h *workflowHandlerImpl) GetDetail(c *gin.Context) {
 	response.OkWithData(result, c)
 }
 
+func (h *workflowHandlerImpl) List(c *gin.Context) {
+	page := 1
+	pageSize := 10
+
+	if pageStr := strings.TrimSpace(c.Query("page")); pageStr != "" {
+		parsedPage, err := strconv.Atoi(pageStr)
+		if err != nil {
+			response.BadRequestWithMessage("invalid page", c)
+			return
+		}
+		page = parsedPage
+	}
+
+	if pageSizeStr := strings.TrimSpace(c.Query("pageSize")); pageSizeStr != "" {
+		parsedPageSize, err := strconv.Atoi(pageSizeStr)
+		if err != nil {
+			response.BadRequestWithMessage("invalid pageSize", c)
+			return
+		}
+		pageSize = parsedPageSize
+	}
+
+	result, err := service.WorkflowService.List(page, pageSize)
+	if err != nil {
+		respondWorkflowError(c, err)
+		return
+	}
+
+	response.OkWithData(result, c)
+}
+
 func (h *workflowHandlerImpl) GetTasks(c *gin.Context) {
 	workflowID, ok := parseWorkflowID(c)
 	if !ok {
