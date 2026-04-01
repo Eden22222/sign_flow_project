@@ -27,18 +27,14 @@ func InitRouter() *gin.Engine {
 
 func RegisterRoutes(r *gin.Engine) {
 	api := r.Group("/api/v1")
-	admin := api.Group("/admin")
-	{
-		admin.POST("/workflows", handler.WorkflowHandler.CreateWorkflowAdmin)
-	}
 	api.POST("/files/upload", handler.FileHandler.Upload)
 
-	api.POST("/workflows", handler.WorkflowHandler.CreateWorkflowDraft)
+	api.POST("/users", handler.UserHandler.CreateUser)
+	api.GET("/users/:userCode", handler.UserHandler.GetByUserCode)
+
+	api.POST("/workflows", handler.WorkflowHandler.CreateWorkflow)
 	api.PUT("/workflows/:workflowId/fields", handler.WorkflowHandler.SaveFields)
 	api.POST("/workflows/:workflowId/activate", handler.WorkflowHandler.Activate)
-
-	// 兼容旧接口：先不让老前端立刻挂掉
-	api.POST("/createWorkflow", handler.WorkflowHandler.CreateWorkflow)
 
 	api.GET("/workflows", handler.WorkflowHandler.List)
 	api.GET("/workflows/:workflowId", handler.WorkflowHandler.GetDetail)

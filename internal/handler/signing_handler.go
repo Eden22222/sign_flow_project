@@ -3,7 +3,7 @@ package handler
 import (
 	"strconv"
 
-	service "sign_flow_project/internal/service/workflow_service"
+	workflowsvc "sign_flow_project/internal/service/workflow_service"
 	"sign_flow_project/pkg/response"
 
 	"github.com/gin-gonic/gin"
@@ -21,13 +21,13 @@ func (h *signingHandlerImpl) Submit(c *gin.Context) {
 		return
 	}
 
-	var req service.SubmitSigningRequest
+	var req workflowsvc.SubmitSigningRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage("invalid request body", c)
 		return
 	}
 
-	result, err := service.SigningService.Submit(uint(workflowID64), req)
+	result, err := workflowsvc.SigningService.Submit(uint(workflowID64), req)
 	if err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return

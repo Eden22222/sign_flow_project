@@ -199,27 +199,9 @@ func setupQueryTestEngineAndWorkflow(t *testing.T) (*gin.Engine, uint) {
 
 	engine := gin.New()
 	router.RegisterRoutes(engine)
+	seedWorkflowTestUsers(t, engine)
 
-	createRes := performJSON(engine, http.MethodPost, "/api/v1/admin/workflows", map[string]any{
-		"title":   "query-test-doc",
-		"signers": []string{"A", "B", "C"},
-	})
-	if createRes.Code != http.StatusOK {
-		t.Fatalf("create workflow status=%d body=%s", createRes.Code, createRes.Body.String())
-	}
-
-	var wrapper apiResponse
-	if err := json.Unmarshal(createRes.Body.Bytes(), &wrapper); err != nil {
-		t.Fatalf("unmarshal create wrapper failed: %v", err)
-	}
-	if wrapper.Code != http.StatusOK {
-		t.Fatalf("create workflow code=%d msg=%s", wrapper.Code, wrapper.Msg)
-	}
-
-	var created createWorkflowResp
-	if err := json.Unmarshal(wrapper.Data, &created); err != nil {
-		t.Fatalf("unmarshal create data failed: %v", err)
-	}
+	created := createPendingWorkflowViaDraftAPI(t, engine, "query-test-doc", "A", []string{"A", "B", "C"})
 
 	return engine, created.WorkflowID
 }

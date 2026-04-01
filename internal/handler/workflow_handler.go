@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"sign_flow_project/internal/service/workflow_service"
+	workflowsvc "sign_flow_project/internal/service/workflow_service"
 	"sign_flow_project/pkg/response"
 	"strconv"
 	"strings"
@@ -13,35 +13,16 @@ type workflowHandlerImpl struct{}
 
 var WorkflowHandler = new(workflowHandlerImpl)
 
+// CreateWorkflow POST /api/v1/workflows，创建签署草稿（唯一入口）。
 func (h *workflowHandlerImpl) CreateWorkflow(c *gin.Context) {
-	// 兼容旧路由：保持函数名不变，但逻辑切到草稿创建。
-	h.CreateWorkflowDraft(c)
-}
-
-func (h *workflowHandlerImpl) CreateWorkflowAdmin(c *gin.Context) {
-	var req service.CreateWorkflowRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequestWithMessage("invalid request body", c)
-		return
-	}
-
-	result, err := service.WorkflowService.CreateWorkflowLegacy(req)
-	if err != nil {
-		respondWorkflowError(c, err)
-		return
-	}
-	response.OkWithData(result, c)
-}
-
-func (h *workflowHandlerImpl) CreateWorkflowDraft(c *gin.Context) {
-	var req service.CreateWorkflowDraftRequest
+	var req workflowsvc.CreateWorkflowDraftRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequestWithMessage("invalid request body", c)
 		return
 	}
 
-	result, err := service.WorkflowService.CreateWorkflowDraft(req)
+	result, err := workflowsvc.DraftWorkflowService.CreateWorkflowDraft(req)
 	if err != nil {
 		respondWorkflowError(c, err)
 		return
@@ -56,7 +37,7 @@ func (h *workflowHandlerImpl) GetDetail(c *gin.Context) {
 		return
 	}
 
-	result, err := service.WorkflowService.GetDetail(workflowID)
+	result, err := workflowsvc.WorkflowQueryService.GetDetail(workflowID)
 	if err != nil {
 		respondWorkflowError(c, err)
 		return
@@ -87,7 +68,7 @@ func (h *workflowHandlerImpl) List(c *gin.Context) {
 		pageSize = parsedPageSize
 	}
 
-	result, err := service.WorkflowService.List(page, pageSize)
+	result, err := workflowsvc.WorkflowQueryService.List(page, pageSize)
 	if err != nil {
 		respondWorkflowError(c, err)
 		return
@@ -102,7 +83,7 @@ func (h *workflowHandlerImpl) GetTasks(c *gin.Context) {
 		return
 	}
 
-	result, err := service.WorkflowService.GetTasks(workflowID)
+	result, err := workflowsvc.WorkflowQueryService.GetTasks(workflowID)
 	if err != nil {
 		respondWorkflowError(c, err)
 		return
@@ -117,7 +98,7 @@ func (h *workflowHandlerImpl) GetSigners(c *gin.Context) {
 		return
 	}
 
-	result, err := service.WorkflowService.GetSigners(workflowID)
+	result, err := workflowsvc.WorkflowQueryService.GetSigners(workflowID)
 	if err != nil {
 		respondWorkflowError(c, err)
 		return
@@ -132,13 +113,13 @@ func (h *workflowHandlerImpl) SaveFields(c *gin.Context) {
 		return
 	}
 
-	var req service.SaveWorkflowFieldsRequest
+	var req workflowsvc.SaveWorkflowFieldsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequestWithMessage("invalid request body", c)
 		return
 	}
 
-	result, err := service.WorkflowService.SaveWorkflowFields(workflowID, req)
+	result, err := workflowsvc.DraftWorkflowService.SaveWorkflowFields(workflowID, req)
 	if err != nil {
 		respondWorkflowError(c, err)
 		return
@@ -153,7 +134,7 @@ func (h *workflowHandlerImpl) Activate(c *gin.Context) {
 		return
 	}
 
-	result, err := service.WorkflowService.ActivateWorkflow(workflowID)
+	result, err := workflowsvc.DraftWorkflowService.ActivateWorkflow(workflowID)
 	if err != nil {
 		respondWorkflowError(c, err)
 		return
@@ -190,6 +171,7 @@ func respondWorkflowError(c *gin.Context, err error) {
 		strings.Contains(errMsg, "editable") ||
 		strings.Contains(errMsg, "activated") ||
 		strings.Contains(errMsg, "signer") ||
+		strings.Contains(errMsg, "initiator") ||
 		strings.Contains(errMsg, "field") ||
 		strings.Contains(errMsg, "stored file") {
 		response.BadRequestWithMessage(errMsg, c)

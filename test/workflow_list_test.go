@@ -81,11 +81,14 @@ func TestListWorkflows_OK(t *testing.T) {
 	if item1.SignerCount != 2 || item1.TotalSteps != 2 {
 		t.Fatalf("expect list-doc-1 signerCount/totalSteps=2, got signerCount=%d totalSteps=%d", item1.SignerCount, item1.TotalSteps)
 	}
-	if item1.WorkflowStatus != string(model.WorkflowStatusPending) {
-		t.Fatalf("expect list-doc-1 workflowStatus=%s, got %s", model.WorkflowStatusPending, item1.WorkflowStatus)
+	if item1.WorkflowStatus != string(model.WorkflowStatusDraft) {
+		t.Fatalf("expect list-doc-1 workflowStatus=%s, got %s", model.WorkflowStatusDraft, item1.WorkflowStatus)
 	}
 	if item1.DocumentStatus != string(model.DocumentStatusDraft) {
 		t.Fatalf("expect list-doc-1 documentStatus=%s, got %s", model.DocumentStatusDraft, item1.DocumentStatus)
+	}
+	if item1.Initiator != "User A" {
+		t.Fatalf("expect list-doc-1 initiator=User A, got %q", item1.Initiator)
 	}
 
 	item2, ok := itemsByTitle["list-doc-2"]
@@ -95,8 +98,11 @@ func TestListWorkflows_OK(t *testing.T) {
 	if item2.SignerCount != 3 || item2.TotalSteps != 3 {
 		t.Fatalf("expect list-doc-2 signerCount/totalSteps=3, got signerCount=%d totalSteps=%d", item2.SignerCount, item2.TotalSteps)
 	}
-	if item2.WorkflowStatus != string(model.WorkflowStatusPending) {
-		t.Fatalf("expect list-doc-2 workflowStatus=%s, got %s", model.WorkflowStatusPending, item2.WorkflowStatus)
+	if item2.Initiator != "User A" {
+		t.Fatalf("expect list-doc-2 initiator=User A, got %q", item2.Initiator)
+	}
+	if item2.WorkflowStatus != string(model.WorkflowStatusDraft) {
+		t.Fatalf("expect list-doc-2 workflowStatus=%s, got %s", model.WorkflowStatusDraft, item2.WorkflowStatus)
 	}
 	if item2.DocumentStatus != string(model.DocumentStatusDraft) {
 		t.Fatalf("expect list-doc-2 documentStatus=%s, got %s", model.DocumentStatusDraft, item2.DocumentStatus)
@@ -154,26 +160,12 @@ func setupListTestEngine(t *testing.T) *gin.Engine {
 
 	engine := gin.New()
 	router.RegisterRoutes(engine)
+	seedWorkflowTestUsers(t, engine)
 	return engine
 }
 
 func createWorkflowForListTest(t *testing.T, engine *gin.Engine, title string, signers []string) {
 	t.Helper()
-
-	createRes := performJSON(engine, http.MethodPost, "/api/v1/admin/workflows", map[string]any{
-		"title":   title,
-		"signers": signers,
-	})
-	if createRes.Code != http.StatusOK {
-		t.Fatalf("create workflow status=%d body=%s", createRes.Code, createRes.Body.String())
-	}
-
-	var wrapper apiResponse
-	if err := json.Unmarshal(createRes.Body.Bytes(), &wrapper); err != nil {
-		t.Fatalf("unmarshal create wrapper failed: %v", err)
-	}
-	if wrapper.Code != http.StatusOK {
-		t.Fatalf("create workflow code=%d msg=%s", wrapper.Code, wrapper.Msg)
-	}
+	createWorkflowDraftViaAPI(t, engine, title, signers[0], signers)
 }
 

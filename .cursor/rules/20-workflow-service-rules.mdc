@@ -7,27 +7,22 @@ globs: ["internal/service/**/*.go"]
 
 ## 当前最重要的 service
 优先实现：
-- WorkflowService.CreateWorkflow
+- DraftWorkflowService.CreateWorkflowDraft（HTTP：`POST /api/v1/workflows`）
 - SigningService.Submit
 
-## CreateWorkflow 的业务要求
-CreateWorkflow 至少要完成：
-1. 创建 DocumentModel
-2. 创建 WorkflowModel
-3. 创建第一条 TaskModel（第一个 signer）
-4. 使用数据库事务保证三者一致性
+## CreateWorkflowDraft（创建工作流草稿）的业务要求
+1. 校验 `fileKey` 对应已上传 PDF、发起人/签署人均为已存在 `UserCode`
+2. 创建 DocumentModel（含文件元数据）
+3. 创建 WorkflowModel（`draft`）与 WorkflowSigner 列表
+4. 使用数据库事务
+5. 激活前不产生 Task；激活（`ActivateWorkflow`）后在事务内创建首条 Task 并将 workflow/document 置为可签署状态
 
-输入示例：
-- title
-- signers: ["A", "B", "C"]
+输入字段（JSON）：`title`、`description`、`dueDate`、`priority`、`fileKey`、`fileName`、`fileType`、`fileSize`、`initiatorId`、`signers`
 
-输出至少包含：
-- documentId
-- workflowId
-- firstSigner
+输出：`CreateWorkflowDraftResult`（含 `documentId`、`workflowId`、状态与版本等）
 
 ## Submit 的业务要求
-Submit 后续要完成：
+Submit 要完成：
 1. 找到当前 task
 2. 校验当前 signer 是否匹配
 3. 校验 task 状态是否允许提交
@@ -39,9 +34,9 @@ Submit 后续要完成：
 9. 全过程使用事务
 
 ## 当前业务状态建议
-- document.status 可使用：draft / completed
-- workflow.status 可使用：pending / completed
-- task.status 可使用：pending / signed
+- document.status：draft / ready / signing / completed
+- workflow.status：draft / pending / completed / cancelled
+- task.status：pending / signed
 
 ## 重要原则
 - 所有流程推进逻辑都放在 service

@@ -23,9 +23,8 @@ type apiResponse struct {
 }
 
 type createWorkflowResp struct {
-	DocumentID  uint   `json:"documentId"`
-	WorkflowID  uint   `json:"workflowId"`
-	FirstSigner string `json:"firstSigner"`
+	DocumentID uint `json:"documentId"`
+	WorkflowID uint `json:"workflowId"`
 }
 
 type submitResp struct {
@@ -55,29 +54,10 @@ func TestSubmitSigningThreeSignersFlow(t *testing.T) {
 
 	engine := gin.New()
 	router.RegisterRoutes(engine)
+	seedWorkflowTestUsers(t, engine)
 
-	// 1) 先创建 workflow（当前实现只会创建第一条 task）
-	createBody := map[string]any{
-		"title":   "thesis-flow-doc",
-		"signers": []string{"A", "B", "C"},
-	}
-	createRes := performJSON(engine, http.MethodPost, "/api/v1/admin/workflows", createBody)
-	if createRes.Code != http.StatusOK {
-		t.Fatalf("create workflow status=%d body=%s", createRes.Code, createRes.Body.String())
-	}
-
-	var wrapper apiResponse
-	if err := json.Unmarshal(createRes.Body.Bytes(), &wrapper); err != nil {
-		t.Fatalf("unmarshal create wrapper failed: %v", err)
-	}
-	if wrapper.Code != http.StatusOK {
-		t.Fatalf("create workflow code=%d msg=%s", wrapper.Code, wrapper.Msg)
-	}
-
-	var created createWorkflowResp
-	if err := json.Unmarshal(wrapper.Data, &created); err != nil {
-		t.Fatalf("unmarshal create data failed: %v", err)
-	}
+	// 1) 上传 PDF → 创建草稿 → 字段 → 激活，得到 pending + 首条 task
+	created := createPendingWorkflowViaDraftAPI(t, engine, "thesis-flow-doc", "A", []string{"A", "B", "C"})
 
 	// 2) A 提交，nextSigner 应为 B
 	aSubmit := performJSON(engine, http.MethodPost, "/api/v1/workflows/"+uintToString(created.WorkflowID)+"/submit", map[string]any{
@@ -126,6 +106,31 @@ func cleanupTables(t *testing.T, gdb *gorm.DB) {
 	}
 	if err := gdb.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&model.DocumentModel{}).Error; err != nil {
 		t.Fatalf("cleanup documents failed: %v", err)
+	}
+	// user_code 唯一索引：软删仍会占位，测试清理需物理删除
+	if err := gdb.Unscoped().Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&model.UserModel{}).Error; err != nil {
+		t.Fatalf("cleanup users failed: %v", err)
+	}
+}
+
+// seedWorkflowTestUsers 创建 A/B/C 三个测试用户（与历史签署人 string 占位一致）。
+func seedWorkflowTestUsers(t *testing.T, engine *gin.Engine) {
+	t.Helper()
+	for _, code := range []string{"A", "B", "C"} {
+		rec := performJSON(engine, http.MethodPost, "/api/v1/users", map[string]any{
+			"userCode": code,
+			"name":     "User " + code,
+		})
+		if rec.Code != http.StatusOK {
+			t.Fatalf("seed user %s status=%d body=%s", code, rec.Code, rec.Body.String())
+		}
+		var wrapper apiResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &wrapper); err != nil {
+			t.Fatalf("seed user %s unmarshal wrapper: %v", code, err)
+		}
+		if wrapper.Code != http.StatusOK {
+			t.Fatalf("seed user %s code=%d msg=%s", code, wrapper.Code, wrapper.Msg)
+		}
 	}
 }
 
