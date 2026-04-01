@@ -38,8 +38,12 @@ func RegisterRoutes(r *gin.Engine) {
 
 	api.GET("/workflows", handler.WorkflowHandler.List)
 	api.GET("/workflows/:workflowId", handler.WorkflowHandler.GetDetail)
+	api.GET("/workflows/:workflowId/signing-detail", handler.WorkflowHandler.GetSigningDetail)
+	api.GET("/workflows/:workflowId/sign-fields", handler.WorkflowHandler.GetSignFields)
 	api.GET("/workflows/:workflowId/tasks", handler.WorkflowHandler.GetTasks)
 	api.GET("/workflows/:workflowId/signers", handler.WorkflowHandler.GetSigners)
+	api.GET("/documents/:documentId/preview", handler.FileHandler.PreviewDocument)
+	api.POST("/workflows/:workflowId/sign-fields/:fieldId/fill", handler.SigningHandler.FillSignField)
 	api.POST("/workflows/:workflowId/submit", handler.SigningHandler.Submit)
 }
 

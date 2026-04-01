@@ -46,6 +46,36 @@ func (h *workflowHandlerImpl) GetDetail(c *gin.Context) {
 	response.OkWithData(result, c)
 }
 
+func (h *workflowHandlerImpl) GetSigningDetail(c *gin.Context) {
+	workflowID, ok := parseWorkflowID(c)
+	if !ok {
+		return
+	}
+
+	result, err := workflowsvc.WorkflowQueryService.GetSigningDetail(workflowID)
+	if err != nil {
+		respondWorkflowError(c, err)
+		return
+	}
+
+	response.OkWithData(result, c)
+}
+
+func (h *workflowHandlerImpl) GetSignFields(c *gin.Context) {
+	workflowID, ok := parseWorkflowID(c)
+	if !ok {
+		return
+	}
+
+	result, err := workflowsvc.WorkflowQueryService.GetSignFields(workflowID)
+	if err != nil {
+		respondWorkflowError(c, err)
+		return
+	}
+
+	response.OkWithData(result, c)
+}
+
 func (h *workflowHandlerImpl) List(c *gin.Context) {
 	page := 1
 	pageSize := 10

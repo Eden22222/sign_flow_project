@@ -23,5 +23,6 @@ type DocumentFieldModel struct {
 
 	Required bool   `json:"required" gorm:"column:required;type:boolean;not null;default:false"`
 	Status   string `json:"status" gorm:"column:status;type:varchar(50);not null;default:'pending'"`
-	Value    string `json:"value" gorm:"column:value;type:text"`
+	// Value 存签署文本或 draw/upload 的 base64、data URL 等；不做独立资源表。
+	Value string `json:"value" gorm:"column:value;type:text"`
 }

@@ -106,6 +106,26 @@ func (s *fileServiceImpl) AbsPathFromFileKey(fileKey string) string {
 	return filepath.Join(storageRootDir, filepath.FromSlash(fileKey))
 }
 
+// OpenDocumentByFileKey 将 fileKey 转为绝对路径并校验文件存在且为普通文件。
+func (s *fileServiceImpl) OpenDocumentByFileKey(fileKey string) (string, error) {
+	fileKey = strings.TrimSpace(fileKey)
+	if fileKey == "" {
+		return "", fmt.Errorf("fileKey is empty")
+	}
+	absPath := s.AbsPathFromFileKey(fileKey)
+	st, err := os.Stat(absPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("stored file not found")
+		}
+		return "", err
+	}
+	if st.IsDir() {
+		return "", fmt.Errorf("stored file not found")
+	}
+	return absPath, nil
+}
+
 func randomHex(nBytes int) (string, error) {
 	if nBytes <= 0 {
 		return "", fmt.Errorf("invalid random length")
