@@ -29,12 +29,12 @@ func (h *signingHandlerImpl) Submit(c *gin.Context) {
 		return
 	}
 
-	userCode, ok := currentUserCodeFromContext(c)
+	userID, ok := currentUserIDFromContext(c)
 	if !ok {
 		response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "invalid current user", c)
 		return
 	}
-	req.SignerID = userCode
+	req.SignerID = userID
 
 	result, err := workflowsvc.SigningService.Submit(uint(workflowID64), req)
 	if err != nil {
@@ -66,12 +66,12 @@ func (h *signingHandlerImpl) FillSignField(c *gin.Context) {
 		return
 	}
 
-	userCode, ok := currentUserCodeFromContext(c)
+	userID, ok := currentUserIDFromContext(c)
 	if !ok {
 		response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "invalid current user", c)
 		return
 	}
-	req.SignerID = userCode
+	req.SignerID = userID
 
 	result, err := workflowsvc.SigningService.FillSignField(uint(workflowID64), uint(fieldID64), req)
 	if err != nil {

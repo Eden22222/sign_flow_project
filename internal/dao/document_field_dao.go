@@ -155,7 +155,7 @@ func (d *documentFieldDaoImpl) UpdateTx(tx *gorm.DB, field *model.DocumentFieldM
 	return nil
 }
 
-func (d *documentFieldDaoImpl) SelectByWorkflowIDAndSignerID(workflowID uint, signerID string) ([]model.DocumentFieldModel, error) {
+func (d *documentFieldDaoImpl) SelectByWorkflowIDAndSignerID(workflowID uint, signerID uint) ([]model.DocumentFieldModel, error) {
 	db, err := defaultDB()
 	if err != nil {
 		log.Error(err)
@@ -174,7 +174,7 @@ func (d *documentFieldDaoImpl) SelectByWorkflowIDAndSignerID(workflowID uint, si
 	return fields, nil
 }
 
-func (d *documentFieldDaoImpl) SelectByWorkflowIDAndSignerIDTx(tx *gorm.DB, workflowID uint, signerID string) ([]model.DocumentFieldModel, error) {
+func (d *documentFieldDaoImpl) SelectByWorkflowIDAndSignerIDTx(tx *gorm.DB, workflowID uint, signerID uint) ([]model.DocumentFieldModel, error) {
 	if tx == nil {
 		return nil, errNilDB
 	}

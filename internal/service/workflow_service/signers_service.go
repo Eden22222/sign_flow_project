@@ -10,7 +10,7 @@ import (
 )
 
 type WorkflowSignerItem struct {
-	SignerID  string `json:"signerId"`
+	SignerID  uint   `json:"signerId"`
 	StepIndex int    `json:"stepIndex"`
 }
 

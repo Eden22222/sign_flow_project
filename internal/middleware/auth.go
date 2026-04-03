@@ -12,7 +12,6 @@ import (
 
 const (
 	CtxCurrentUserID    = "currentUserID"
-	CtxCurrentUserCode  = "currentUserCode"
 	CtxCurrentUserEmail = "currentUserEmail"
 )
 
@@ -38,7 +37,7 @@ func JWTAuth() gin.HandlerFunc {
 			return
 		}
 
-		uid, code, email, err := usersvc.UserLoginService.ParseAccessToken(tokenStr)
+		uid, email, err := usersvc.UserLoginService.ParseAccessToken(tokenStr)
 		if err != nil {
 			response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "invalid or expired token", c)
 			c.Abort()
@@ -46,7 +45,6 @@ func JWTAuth() gin.HandlerFunc {
 		}
 
 		c.Set(CtxCurrentUserID, uid)
-		c.Set(CtxCurrentUserCode, code)
 		c.Set(CtxCurrentUserEmail, email)
 		c.Next()
 	}

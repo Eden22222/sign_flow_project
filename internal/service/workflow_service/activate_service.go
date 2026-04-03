@@ -3,7 +3,6 @@ package service
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"sign_flow_project/internal/dao"
 	infradb "sign_flow_project/internal/infra/db"
@@ -18,15 +17,14 @@ type ActivateWorkflowResult struct {
 	CurrentStep     int    `json:"currentStep"`
 	WorkflowStatus  string `json:"workflowStatus"`
 	DocumentStatus  string `json:"documentStatus"`
-	CurrentSignerID string `json:"currentSignerId"`
+	CurrentSignerID uint   `json:"currentSignerId"`
 }
 
-func (s *draftWorkflowServiceImpl) ActivateWorkflow(workflowID uint, currentUserCode string) (*ActivateWorkflowResult, error) {
+func (s *draftWorkflowServiceImpl) ActivateWorkflow(workflowID uint, currentUserID uint) (*ActivateWorkflowResult, error) {
 	if workflowID == 0 {
 		return nil, fmt.Errorf("workflowId is required")
 	}
-	currentUserCode = strings.TrimSpace(currentUserCode)
-	if currentUserCode == "" {
+	if currentUserID == 0 {
 		return nil, fmt.Errorf("current user is required")
 	}
 
@@ -47,7 +45,7 @@ func (s *draftWorkflowServiceImpl) ActivateWorkflow(workflowID uint, currentUser
 		if workflow.Status != model.WorkflowStatusDraft {
 			return fmt.Errorf("only draft workflow can be activated")
 		}
-		if strings.TrimSpace(workflow.InitiatorID) != currentUserCode {
+		if workflow.InitiatorID != currentUserID {
 			return fmt.Errorf("only initiator can activate workflow")
 		}
 
@@ -74,7 +72,7 @@ func (s *draftWorkflowServiceImpl) ActivateWorkflow(workflowID uint, currentUser
 				break
 			}
 		}
-		if firstSigner == nil || strings.TrimSpace(firstSigner.SignerID) == "" {
+		if firstSigner == nil || firstSigner.SignerID == 0 {
 			return fmt.Errorf("stepIndex=1 signer not found")
 		}
 
@@ -86,13 +84,13 @@ func (s *draftWorkflowServiceImpl) ActivateWorkflow(workflowID uint, currentUser
 			return fmt.Errorf("at least one field is required before activation")
 		}
 
-		signerSet := make(map[string]struct{}, len(signers))
+		signerSet := make(map[uint]struct{}, len(signers))
 		for _, s := range signers {
 			signerSet[s.SignerID] = struct{}{}
 		}
 		for _, f := range fields {
 			if _, ok := signerSet[f.SignerID]; !ok {
-				return fmt.Errorf("signer %s is not in current workflow", f.SignerID)
+				return fmt.Errorf("signer %d is not in current workflow", f.SignerID)
 			}
 		}
 
@@ -109,7 +107,7 @@ func (s *draftWorkflowServiceImpl) ActivateWorkflow(workflowID uint, currentUser
 
 		firstTask := &model.TaskModel{
 			WorkflowID: workflow.ID,
-			SignerID:   strings.TrimSpace(firstSigner.SignerID),
+			SignerID:   firstSigner.SignerID,
 			StepIndex:  1,
 			Status:     model.TaskStatusPending,
 		}

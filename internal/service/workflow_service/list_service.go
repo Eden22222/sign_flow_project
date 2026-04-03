@@ -2,7 +2,6 @@ package service
 
 import (
 	"errors"
-	"strings"
 
 	"sign_flow_project/internal/dao"
 	usersvc "sign_flow_project/internal/service/user_service"
@@ -51,13 +50,13 @@ func (s *workflowQueryServiceImpl) List(page int, pageSize int) (*WorkflowListRe
 		return nil, err
 	}
 
-	initiatorCodes := make([]string, 0, len(workflows))
+	initiatorIDs := make([]uint, 0, len(workflows))
 	for _, wf := range workflows {
-		if c := strings.TrimSpace(wf.InitiatorID); c != "" {
-			initiatorCodes = append(initiatorCodes, c)
+		if wf.InitiatorID != 0 {
+			initiatorIDs = append(initiatorIDs, wf.InitiatorID)
 		}
 	}
-	initiatorUserMap, err := usersvc.UserService.BatchGetMapByUserCodes(initiatorCodes)
+	initiatorUserMap, err := usersvc.UserService.BatchGetMapByIDs(initiatorIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -79,10 +78,8 @@ func (s *workflowQueryServiceImpl) List(page int, pageSize int) (*WorkflowListRe
 		signerCount := len(signers)
 
 		initiatorName := ""
-		if ic := strings.TrimSpace(workflow.InitiatorID); ic != "" {
-			if u, ok := initiatorUserMap[ic]; ok {
-				initiatorName = u.Name
-			}
+		if u, ok := initiatorUserMap[workflow.InitiatorID]; ok {
+			initiatorName = u.Name
 		}
 
 		list = append(list, WorkflowListItem{

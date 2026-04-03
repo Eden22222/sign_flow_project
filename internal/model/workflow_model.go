@@ -3,7 +3,7 @@ package model
 type WorkflowModel struct {
 	Model
 	DocumentID  uint           `json:"documentId" gorm:"column:document_id;type:integer;not null"`
-	InitiatorID string         `json:"initiatorId" gorm:"column:initiator_id;type:varchar(50);not null;default:''"`
+	InitiatorID uint           `json:"initiatorId" gorm:"column:initiator_id;type:integer;not null"`
 	CurrentStep int            `json:"currentStep" gorm:"column:current_step;type:integer;not null;default:1"`
 	Status      WorkflowStatus `json:"status" gorm:"column:status;type:varchar(50);not null;default:'pending'"`
 }

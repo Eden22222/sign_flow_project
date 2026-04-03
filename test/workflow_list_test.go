@@ -34,9 +34,10 @@ type workflowListResp struct {
 
 func TestListWorkflows_OK(t *testing.T) {
 	engine := setupListTestEngine(t)
+	users := seedWorkflowTestUsers(t, engine)
 
-	createWorkflowForListTest(t, engine, "list-doc-1", []string{"A", "B"})
-	createWorkflowForListTest(t, engine, "list-doc-2", []string{"A", "B", "C"})
+	createWorkflowForListTest(t, engine, users, "list-doc-1", []uint{users["A"].ID, users["B"].ID})
+	createWorkflowForListTest(t, engine, users, "list-doc-2", []uint{users["A"].ID, users["B"].ID, users["C"].ID})
 
 	getRes := performJSON(engine, http.MethodGet, "/api/v1/workflows?page=1&pageSize=10", nil)
 	if getRes.Code != http.StatusOK {
@@ -111,7 +112,8 @@ func TestListWorkflows_OK(t *testing.T) {
 
 func TestListWorkflows_PageNormalize_OK(t *testing.T) {
 	engine := setupListTestEngine(t)
-	createWorkflowForListTest(t, engine, "normalize-doc", []string{"A"})
+	users := seedWorkflowTestUsers(t, engine)
+	createWorkflowForListTest(t, engine, users, "normalize-doc", []uint{users["A"].ID})
 
 	getRes := performJSON(engine, http.MethodGet, "/api/v1/workflows?page=0&pageSize=0", nil)
 	if getRes.Code != http.StatusOK {
@@ -160,12 +162,11 @@ func setupListTestEngine(t *testing.T) *gin.Engine {
 
 	engine := gin.New()
 	router.RegisterRoutes(engine)
-	seedWorkflowTestUsers(t, engine)
 	return engine
 }
 
-func createWorkflowForListTest(t *testing.T, engine *gin.Engine, title string, signers []string) {
+func createWorkflowForListTest(t *testing.T, engine *gin.Engine, users map[string]testUserSeed, title string, signers []uint) {
 	t.Helper()
-	createWorkflowDraftViaAPI(t, engine, title, signers[0], signers)
+	createWorkflowDraftViaAPI(t, engine, title, users["A"].Token, users["A"].ID, signers)
 }
 

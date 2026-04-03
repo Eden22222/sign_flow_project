@@ -86,8 +86,8 @@ func respondAuthError(c *gin.Context, err error) {
 	}
 	if strings.Contains(low, "duplicate key") ||
 		strings.Contains(low, "unique constraint") ||
-		strings.Contains(msg, "userCode already exists") {
-		response.BadRequestWithMessage("registration failed: userCode conflict, retry", c)
+		strings.Contains(msg, "already registered") {
+		response.BadRequestWithMessage("registration failed: email conflict, retry", c)
 		return
 	}
 	response.InternalErrorWithMessage(msg, c)

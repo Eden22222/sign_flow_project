@@ -19,7 +19,7 @@ var SigningService = new(signingServiceImpl)
 
 // SignerID 须由已挂 JWTAuth 的 handler 从 token 注入；body 中的 signerId 会被覆盖，勿信任前端。
 type SubmitSigningRequest struct {
-	SignerID string `json:"signerId"`
+	SignerID uint `json:"signerId"`
 }
 
 type SubmitSigningResult struct {
@@ -27,7 +27,7 @@ type SubmitSigningResult struct {
 	DocumentID      uint                 `json:"documentId"`
 	SignedStep      int                  `json:"signedStep"`
 	NextStep        int                  `json:"nextStep"`
-	NextSignerID    string               `json:"nextSignerId"`
+	NextSignerID    uint                 `json:"nextSignerId"`
 	WorkflowStatus  model.WorkflowStatus `json:"workflowStatus"`
 	DocumentStatus  model.DocumentStatus `json:"documentStatus"`
 	DocumentVersion int                  `json:"documentVersion"`
@@ -35,7 +35,7 @@ type SubmitSigningResult struct {
 
 // SignerID 须由已挂 JWTAuth 的 handler 从 token 注入；body 中的 signerId 会被覆盖，勿信任前端。
 type FillSignFieldRequest struct {
-	SignerID string `json:"signerId"`
+	SignerID uint `json:"signerId"`
 	// Mode 仅用于与前端约定输入合法性（draw/type/upload），validateFillSignFieldMode 校验；不入库、不驱动分支逻辑。
 	Mode  string `json:"mode"`
 	Value string `json:"value"`
@@ -44,7 +44,7 @@ type FillSignFieldRequest struct {
 type FillSignFieldResult struct {
 	WorkflowID      uint   `json:"workflowId"`
 	FieldID         uint   `json:"fieldId"`
-	SignerID        string `json:"signerId"`
+	SignerID        uint   `json:"signerId"`
 	FieldType       string `json:"fieldType"`
 	Status          string `json:"status"`
 	Value           string `json:"value"`
@@ -70,8 +70,8 @@ func (s *signingServiceImpl) FillSignField(workflowID, fieldID uint, req FillSig
 	if fieldID == 0 {
 		return nil, fmt.Errorf("fieldId is required")
 	}
-	signerID := strings.TrimSpace(req.SignerID)
-	if signerID == "" {
+	signerID := req.SignerID
+	if signerID == 0 {
 		return nil, fmt.Errorf("signerId is required")
 	}
 	value := strings.TrimSpace(req.Value)
@@ -109,7 +109,7 @@ func (s *signingServiceImpl) FillSignField(workflowID, fieldID uint, req FillSig
 			}
 			return err
 		}
-		if strings.TrimSpace(currentTask.SignerID) != signerID {
+		if currentTask.SignerID != signerID {
 			return fmt.Errorf("current pending task does not belong to signer")
 		}
 		if currentTask.StepIndex != workflow.CurrentStep {
@@ -126,7 +126,7 @@ func (s *signingServiceImpl) FillSignField(workflowID, fieldID uint, req FillSig
 		if field.WorkflowID != workflowID {
 			return fmt.Errorf("field does not belong to this workflow")
 		}
-		if strings.TrimSpace(field.SignerID) != signerID {
+		if field.SignerID != signerID {
 			return fmt.Errorf("field signer mismatch")
 		}
 		if !strings.EqualFold(strings.TrimSpace(field.FieldType), "signature") {
@@ -185,8 +185,8 @@ func (s *signingServiceImpl) Submit(workflowID uint, req SubmitSigningRequest) (
 	if workflowID == 0 {
 		return nil, fmt.Errorf("workflowId is required")
 	}
-	signerID := strings.TrimSpace(req.SignerID)
-	if signerID == "" {
+	signerID := req.SignerID
+	if signerID == 0 {
 		return nil, fmt.Errorf("signerId is required")
 	}
 
@@ -230,7 +230,7 @@ func (s *signingServiceImpl) Submit(workflowID uint, req SubmitSigningRequest) (
 			return fmt.Errorf("workflow current step does not match pending task")
 		}
 
-		if strings.TrimSpace(currentTask.SignerID) != signerID {
+		if currentTask.SignerID != signerID {
 			return fmt.Errorf("current pending task does not belong to signer")
 		}
 
@@ -286,7 +286,7 @@ func (s *signingServiceImpl) Submit(workflowID uint, req SubmitSigningRequest) (
 				DocumentID:      document.ID,
 				SignedStep:      signedStep,
 				NextStep:        0,
-				NextSignerID:    "",
+				NextSignerID:    0,
 				WorkflowStatus:  workflow.Status,
 				DocumentStatus:  document.Status,
 				DocumentVersion: document.CurrentVersion,

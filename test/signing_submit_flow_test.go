@@ -33,10 +33,22 @@ type submitResp struct {
 	DocumentID      uint   `json:"documentId"`
 	SignedStep      int    `json:"signedStep"`
 	NextStep        int    `json:"nextStep"`
-	NextSignerID    string `json:"nextSignerId"`
+	NextSignerID    uint   `json:"nextSignerId"`
 	WorkflowStatus  string `json:"workflowStatus"`
 	DocumentStatus  string `json:"documentStatus"`
 	DocumentVersion int    `json:"documentVersion"`
+}
+
+type authResp struct {
+	User struct {
+		ID uint `json:"id"`
+	} `json:"user"`
+	AccessToken string `json:"accessToken"`
+}
+
+type testUserSeed struct {
+	ID    uint
+	Token string
 }
 
 func TestSubmitSigningThreeSignersFlow(t *testing.T) {
@@ -55,35 +67,54 @@ func TestSubmitSigningThreeSignersFlow(t *testing.T) {
 
 	engine := gin.New()
 	router.RegisterRoutes(engine)
-	seedWorkflowTestUsers(t, engine)
+	users := seedWorkflowTestUsers(t, engine)
 
 	// 1) 上传 PDF → 创建草稿 → 字段 → 激活，得到 pending + 首条 task
-	created := createPendingWorkflowViaDraftAPI(t, engine, "thesis-flow-doc", "A", []string{"A", "B", "C"})
+	created := createPendingWorkflowViaDraftAPI(
+		t,
+		engine,
+		"thesis-flow-doc",
+		users["A"].Token,
+		users["A"].ID,
+		[]uint{users["A"].ID, users["B"].ID, users["C"].ID},
+	)
 
 	// 2) A 提交，nextSigner 应为 B
-	aSubmit := performJSON(engine, http.MethodPost, "/api/v1/workflows/"+uintToString(created.WorkflowID)+"/submit", map[string]any{
-		"signerId": "A",
-	})
+	aSubmit := performJSONWithAuth(
+		engine,
+		http.MethodPost,
+		"/api/v1/workflows/"+uintToString(created.WorkflowID)+"/submit",
+		map[string]any{},
+		users["A"].Token,
+	)
 	assertSubmitOK(t, aSubmit, "A submit")
 	aData := mustParseSubmitData(t, aSubmit)
-	if aData.NextSignerID != "B" || aData.NextStep != 2 {
-		t.Fatalf("A submit expect nextSigner=B nextStep=2, got nextSigner=%s nextStep=%d", aData.NextSignerID, aData.NextStep)
+	if aData.NextSignerID != users["B"].ID || aData.NextStep != 2 {
+		t.Fatalf("A submit expect nextSigner=%d nextStep=2, got nextSigner=%d nextStep=%d", users["B"].ID, aData.NextSignerID, aData.NextStep)
 	}
 
 	// 3) B 提交，nextSigner 应为 C
-	bSubmit := performJSON(engine, http.MethodPost, "/api/v1/workflows/"+uintToString(created.WorkflowID)+"/submit", map[string]any{
-		"signerId": "B",
-	})
+	bSubmit := performJSONWithAuth(
+		engine,
+		http.MethodPost,
+		"/api/v1/workflows/"+uintToString(created.WorkflowID)+"/submit",
+		map[string]any{},
+		users["B"].Token,
+	)
 	assertSubmitOK(t, bSubmit, "B submit")
 	bData := mustParseSubmitData(t, bSubmit)
-	if bData.NextSignerID != "C" || bData.NextStep != 3 {
-		t.Fatalf("B submit expect nextSigner=C nextStep=3, got nextSigner=%s nextStep=%d", bData.NextSignerID, bData.NextStep)
+	if bData.NextSignerID != users["C"].ID || bData.NextStep != 3 {
+		t.Fatalf("B submit expect nextSigner=%d nextStep=3, got nextSigner=%d nextStep=%d", users["C"].ID, bData.NextSignerID, bData.NextStep)
 	}
 
 	// 4) C 提交，workflow/document 应 completed
-	cSubmit := performJSON(engine, http.MethodPost, "/api/v1/workflows/"+uintToString(created.WorkflowID)+"/submit", map[string]any{
-		"signerId": "C",
-	})
+	cSubmit := performJSONWithAuth(
+		engine,
+		http.MethodPost,
+		"/api/v1/workflows/"+uintToString(created.WorkflowID)+"/submit",
+		map[string]any{},
+		users["C"].Token,
+	)
 	assertSubmitOK(t, cSubmit, "C submit")
 	cData := mustParseSubmitData(t, cSubmit)
 	if cData.WorkflowStatus != string(model.WorkflowStatusCompleted) {
@@ -114,14 +145,15 @@ func cleanupTables(t *testing.T, gdb *gorm.DB) {
 	}
 }
 
-// seedWorkflowTestUsers 创建 A/B/C 三个测试用户（与历史签署人 string 占位一致）。
-func seedWorkflowTestUsers(t *testing.T, engine *gin.Engine) {
+// seedWorkflowTestUsers 创建 A/B/C 三个测试用户，并返回 ID 与 token。
+func seedWorkflowTestUsers(t *testing.T, engine *gin.Engine) map[string]testUserSeed {
 	t.Helper()
+	out := make(map[string]testUserSeed, 3)
 	for _, code := range []string{"A", "B", "C"} {
-		rec := performJSON(engine, http.MethodPost, "/api/v1/users", map[string]any{
-			"userCode": code,
+		rec := performJSON(engine, http.MethodPost, "/api/v1/auth/register", map[string]any{
 			"name":     "User " + code,
 			"email":    strings.ToLower(code) + "@test.local",
+			"password": "password123",
 		})
 		if rec.Code != http.StatusOK {
 			t.Fatalf("seed user %s status=%d body=%s", code, rec.Code, rec.Body.String())
@@ -133,13 +165,32 @@ func seedWorkflowTestUsers(t *testing.T, engine *gin.Engine) {
 		if wrapper.Code != http.StatusOK {
 			t.Fatalf("seed user %s code=%d msg=%s", code, wrapper.Code, wrapper.Msg)
 		}
+		var authData authResp
+		if err := json.Unmarshal(wrapper.Data, &authData); err != nil {
+			t.Fatalf("register user %s unmarshal data: %v", code, err)
+		}
+		if authData.User.ID == 0 || authData.AccessToken == "" {
+			t.Fatalf("login user %s get invalid auth data", code)
+		}
+		out[code] = testUserSeed{ID: authData.User.ID, Token: authData.AccessToken}
 	}
+	return out
 }
 
 func performJSON(r http.Handler, method, path string, body map[string]any) *httptest.ResponseRecorder {
 	payload, _ := json.Marshal(body)
 	req := httptest.NewRequest(method, path, bytes.NewBuffer(payload))
 	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	return rec
+}
+
+func performJSONWithAuth(r http.Handler, method, path string, body map[string]any, token string) *httptest.ResponseRecorder {
+	payload, _ := json.Marshal(body)
+	req := httptest.NewRequest(method, path, bytes.NewBuffer(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	return rec

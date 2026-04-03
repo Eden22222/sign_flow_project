@@ -13,7 +13,7 @@ import (
 type WorkflowTaskItem struct {
 	TaskID     uint             `json:"taskId"`
 	WorkflowID uint             `json:"workflowId"`
-	SignerID   string           `json:"signerId"`
+	SignerID   uint             `json:"signerId"`
 	StepIndex  int              `json:"stepIndex"`
 	Status     model.TaskStatus `json:"status"`
 }

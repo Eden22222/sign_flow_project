@@ -17,36 +17,29 @@ type userServiceImpl struct{}
 var UserService = new(userServiceImpl)
 
 type CreateUserRequest struct {
-	UserCode string `json:"userCode"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Avatar   string `json:"avatar"`
-	Status   string `json:"status"`
+	Name   string `json:"name"`
+	Email  string `json:"email"`
+	Avatar string `json:"avatar"`
+	Status string `json:"status"`
 }
 
 type CreateUserResult struct {
-	ID       uint   `json:"id"`
-	UserCode string `json:"userCode"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Avatar   string `json:"avatar"`
-	Status   string `json:"status"`
+	ID     uint   `json:"id"`
+	Name   string `json:"name"`
+	Email  string `json:"email"`
+	Avatar string `json:"avatar"`
+	Status string `json:"status"`
 }
 
 type UserDetailResult struct {
-	ID       uint   `json:"id"`
-	UserCode string `json:"userCode"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Avatar   string `json:"avatar"`
-	Status   string `json:"status"`
+	ID     uint   `json:"id"`
+	Name   string `json:"name"`
+	Email  string `json:"email"`
+	Avatar string `json:"avatar"`
+	Status string `json:"status"`
 }
 
 func (s *userServiceImpl) CreateUser(req CreateUserRequest) (*CreateUserResult, error) {
-	userCode := strings.TrimSpace(req.UserCode)
-	if userCode == "" {
-		return nil, fmt.Errorf("userCode is required")
-	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
 		return nil, fmt.Errorf("name is required")
@@ -62,34 +55,28 @@ func (s *userServiceImpl) CreateUser(req CreateUserRequest) (*CreateUserResult, 
 	}
 
 	u := &model.UserModel{
-		UserCode: userCode,
 		Name:     name,
 		Email:    strings.TrimSpace(req.Email),
 		Avatar:   avatar,
 		Status:   status,
 	}
 	if err := dao.UserDao.Create(u); err != nil {
-		if dup, ok := translateUserCodeDuplicateError(err); ok {
-			return nil, dup
-		}
 		return nil, err
 	}
 	return &CreateUserResult{
-		ID:       u.ID,
-		UserCode: u.UserCode,
-		Name:     u.Name,
-		Email:    u.Email,
-		Avatar:   u.Avatar,
-		Status:   u.Status,
+		ID:     u.ID,
+		Name:   u.Name,
+		Email:  u.Email,
+		Avatar: u.Avatar,
+		Status: u.Status,
 	}, nil
 }
 
-func (s *userServiceImpl) GetByUserCode(userCode string) (*UserDetailResult, error) {
-	userCode = strings.TrimSpace(userCode)
-	if userCode == "" {
-		return nil, fmt.Errorf("userCode is required")
+func (s *userServiceImpl) GetByID(id uint) (*UserDetailResult, error) {
+	if id == 0 {
+		return nil, fmt.Errorf("id is required")
 	}
-	u, err := dao.UserDao.SelectByUserCode(userCode)
+	u, err := dao.UserDao.SelectByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("user not found")
@@ -97,42 +84,40 @@ func (s *userServiceImpl) GetByUserCode(userCode string) (*UserDetailResult, err
 		return nil, err
 	}
 	return &UserDetailResult{
-		ID:       u.ID,
-		UserCode: u.UserCode,
-		Name:     u.Name,
-		Email:    u.Email,
-		Avatar:   u.Avatar,
-		Status:   u.Status,
+		ID:     u.ID,
+		Name:   u.Name,
+		Email:  u.Email,
+		Avatar: u.Avatar,
+		Status: u.Status,
 	}, nil
 }
 
-func (s *userServiceImpl) BatchGetMapByUserCodes(userCodes []string) (map[string]model.UserModel, error) {
-	if len(userCodes) == 0 {
-		return map[string]model.UserModel{}, nil
+func (s *userServiceImpl) BatchGetMapByIDs(userIDs []uint) (map[uint]model.UserModel, error) {
+	if len(userIDs) == 0 {
+		return map[uint]model.UserModel{}, nil
 	}
-	uniq := make([]string, 0, len(userCodes))
-	seen := make(map[string]struct{}, len(userCodes))
-	for _, c := range userCodes {
-		c = strings.TrimSpace(c)
-		if c == "" {
+	uniq := make([]uint, 0, len(userIDs))
+	seen := make(map[uint]struct{}, len(userIDs))
+	for _, id := range userIDs {
+		if id == 0 {
 			continue
 		}
-		if _, ok := seen[c]; ok {
+		if _, ok := seen[id]; ok {
 			continue
 		}
-		seen[c] = struct{}{}
-		uniq = append(uniq, c)
+		seen[id] = struct{}{}
+		uniq = append(uniq, id)
 	}
 	if len(uniq) == 0 {
-		return map[string]model.UserModel{}, nil
+		return map[uint]model.UserModel{}, nil
 	}
-	users, err := dao.UserDao.SelectByUserCodes(uniq)
+	users, err := dao.UserDao.SelectByIDs(uniq)
 	if err != nil {
 		return nil, err
 	}
-	m := make(map[string]model.UserModel, len(users))
+	m := make(map[uint]model.UserModel, len(users))
 	for i := range users {
-		m[users[i].UserCode] = users[i]
+		m[users[i].ID] = users[i]
 	}
 	return m, nil
 }

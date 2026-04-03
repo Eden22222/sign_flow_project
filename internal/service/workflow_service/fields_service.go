@@ -12,26 +12,12 @@ import (
 	"gorm.io/gorm"
 )
 
-func normalizeSignerIDToUserCode(rawSignerID string, emailToUserCode map[string]string) string {
-	sid := strings.TrimSpace(rawSignerID)
-	if sid == "" {
-		return sid
-	}
-	if !strings.Contains(sid, "@") {
-		return sid
-	}
-	if code, ok := emailToUserCode[sid]; ok {
-		return code
-	}
-	return sid
-}
-
 type SaveWorkflowFieldsRequest struct {
 	Fields []SaveWorkflowFieldItem `json:"fields"`
 }
 
 type SaveWorkflowFieldItem struct {
-	SignerID   string  `json:"signerId"`
+	SignerID   uint    `json:"signerId"`
 	FieldType  string  `json:"fieldType"`
 	PageNumber int     `json:"pageNumber"`
 	X          float64 `json:"x"`
@@ -47,12 +33,11 @@ type SaveWorkflowFieldsResult struct {
 	FieldCount int  `json:"fieldCount"`
 }
 
-func (s *draftWorkflowServiceImpl) SaveWorkflowFields(workflowID uint, currentUserCode string, req SaveWorkflowFieldsRequest) (*SaveWorkflowFieldsResult, error) {
+func (s *draftWorkflowServiceImpl) SaveWorkflowFields(workflowID uint, currentUserID uint, req SaveWorkflowFieldsRequest) (*SaveWorkflowFieldsResult, error) {
 	if workflowID == 0 {
 		return nil, fmt.Errorf("workflowId is required")
 	}
-	currentUserCode = strings.TrimSpace(currentUserCode)
-	if currentUserCode == "" {
+	if currentUserID == 0 {
 		return nil, fmt.Errorf("current user is required")
 	}
 	if len(req.Fields) == 0 {
@@ -76,7 +61,7 @@ func (s *draftWorkflowServiceImpl) SaveWorkflowFields(workflowID uint, currentUs
 		if workflow.Status != model.WorkflowStatusDraft {
 			return fmt.Errorf("workflow is not editable")
 		}
-		if strings.TrimSpace(workflow.InitiatorID) != currentUserCode {
+		if workflow.InitiatorID != currentUserID {
 			return fmt.Errorf("only initiator can edit workflow fields")
 		}
 
@@ -84,43 +69,19 @@ func (s *draftWorkflowServiceImpl) SaveWorkflowFields(workflowID uint, currentUs
 		if err != nil {
 			return err
 		}
-		signerSet := make(map[string]struct{}, len(signers))
+		signerSet := make(map[uint]struct{}, len(signers))
 		for _, s := range signers {
 			signerSet[s.SignerID] = struct{}{}
 		}
 
-		fieldEmails := make([]string, 0, len(req.Fields))
-		seenEmail := make(map[string]struct{}, len(req.Fields))
-		for _, f := range req.Fields {
-			sid := strings.TrimSpace(f.SignerID)
-			if sid == "" || !strings.Contains(sid, "@") {
-				continue
-			}
-			if _, exists := seenEmail[sid]; exists {
-				continue
-			}
-			seenEmail[sid] = struct{}{}
-			fieldEmails = append(fieldEmails, sid)
-		}
-		emailToUserCode := make(map[string]string, len(fieldEmails))
-		if len(fieldEmails) > 0 {
-			users, err := dao.UserDao.SelectByEmails(fieldEmails)
-			if err != nil {
-				return err
-			}
-			for _, u := range users {
-				emailToUserCode[u.Email] = u.UserCode
-			}
-		}
-
 		fields := make([]*model.DocumentFieldModel, 0, len(req.Fields))
 		for i, f := range req.Fields {
-			sid := normalizeSignerIDToUserCode(f.SignerID, emailToUserCode)
-			if sid == "" {
+			sid := f.SignerID
+			if sid == 0 {
 				return fmt.Errorf("signer at index %d is empty", i)
 			}
 			if _, ok := signerSet[sid]; !ok {
-				return fmt.Errorf("signer %s is not in current workflow", sid)
+				return fmt.Errorf("signer %d is not in current workflow", sid)
 			}
 
 			ft := strings.TrimSpace(strings.ToLower(f.FieldType))

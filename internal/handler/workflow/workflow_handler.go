@@ -24,12 +24,12 @@ func (h *workflowHandlerImpl) CreateWorkflow(c *gin.Context) {
 		return
 	}
 
-	userCode, ok := currentUserCodeFromContext(c)
+	userID, ok := currentUserIDFromContext(c)
 	if !ok {
 		response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "invalid current user", c)
 		return
 	}
-	req.InitiatorID = userCode
+	req.InitiatorID = userID
 
 	result, err := workflowsvc.DraftWorkflowService.CreateWorkflowDraft(req)
 	if err != nil {
@@ -158,13 +158,13 @@ func (h *workflowHandlerImpl) SaveFields(c *gin.Context) {
 		return
 	}
 
-	userCode, ok := currentUserCodeFromContext(c)
+	userID, ok := currentUserIDFromContext(c)
 	if !ok {
 		response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "invalid current user", c)
 		return
 	}
 
-	result, err := workflowsvc.DraftWorkflowService.SaveWorkflowFields(workflowID, userCode, req)
+	result, err := workflowsvc.DraftWorkflowService.SaveWorkflowFields(workflowID, userID, req)
 	if err != nil {
 		respondWorkflowError(c, err)
 		return
@@ -179,13 +179,13 @@ func (h *workflowHandlerImpl) Activate(c *gin.Context) {
 		return
 	}
 
-	userCode, ok := currentUserCodeFromContext(c)
+	userID, ok := currentUserIDFromContext(c)
 	if !ok {
 		response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "invalid current user", c)
 		return
 	}
 
-	result, err := workflowsvc.DraftWorkflowService.ActivateWorkflow(workflowID, userCode)
+	result, err := workflowsvc.DraftWorkflowService.ActivateWorkflow(workflowID, userID)
 	if err != nil {
 		respondWorkflowError(c, err)
 		return
@@ -194,21 +194,20 @@ func (h *workflowHandlerImpl) Activate(c *gin.Context) {
 	response.OkWithData(result, c)
 }
 
-// currentUserCodeFromContext 读取 JWT 中间件写入的当前用户 userCode（供 workflow / signing handler 共用）。
-func currentUserCodeFromContext(c *gin.Context) (string, bool) {
-	v, ok := c.Get(middleware.CtxCurrentUserCode)
+// currentUserIDFromContext 读取 JWT 中间件写入的当前用户 ID（供 workflow / signing handler 共用）。
+func currentUserIDFromContext(c *gin.Context) (uint, bool) {
+	v, ok := c.Get(middleware.CtxCurrentUserID)
 	if !ok {
-		return "", false
+		return 0, false
 	}
-	s, ok := v.(string)
+	uid, ok := v.(uint)
 	if !ok {
-		return "", false
+		return 0, false
 	}
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return "", false
+	if uid == 0 {
+		return 0, false
 	}
-	return s, true
+	return uid, true
 }
 
 func parseWorkflowID(c *gin.Context) (uint, bool) {

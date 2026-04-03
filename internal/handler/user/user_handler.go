@@ -3,6 +3,7 @@ package user
 import (
 	usersvc "sign_flow_project/internal/service/user_service"
 	"sign_flow_project/pkg/response"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -26,13 +27,14 @@ func (h *userHandlerImpl) CreateUser(c *gin.Context) {
 	response.OkWithData(result, c)
 }
 
-func (h *userHandlerImpl) GetByUserCode(c *gin.Context) {
-	userCode := strings.TrimSpace(c.Param("userCode"))
-	if userCode == "" {
-		response.BadRequestWithMessage("userCode is required", c)
+func (h *userHandlerImpl) GetByID(c *gin.Context) {
+	idStr := strings.TrimSpace(c.Param("id"))
+	id64, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id64 == 0 {
+		response.BadRequestWithMessage("id is required", c)
 		return
 	}
-	result, err := usersvc.UserService.GetByUserCode(userCode)
+	result, err := usersvc.UserService.GetByID(uint(id64))
 	if err != nil {
 		respondUserError(c, err)
 		return
@@ -51,7 +53,7 @@ func respondUserError(c *gin.Context, err error) {
 		return
 	}
 	if strings.Contains(low, "duplicate key") || strings.Contains(low, "unique constraint") {
-		response.BadRequestWithMessage("userCode already exists", c)
+		response.BadRequestWithMessage("email already exists", c)
 		return
 	}
 	if strings.Contains(errMsg, "required") ||

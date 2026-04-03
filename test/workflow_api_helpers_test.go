@@ -33,7 +33,7 @@ func uploadSamplePDFFileKey(t *testing.T, engine http.Handler) string {
 }
 
 // createWorkflowDraftViaAPI 调用 POST /api/v1/workflows，返回草稿（workflow 为 draft，无 task）。
-func createWorkflowDraftViaAPI(t *testing.T, engine http.Handler, title, initiator string, signers []string) createWorkflowResp {
+func createWorkflowDraftViaAPI(t *testing.T, engine http.Handler, title string, initiatorToken string, initiatorID uint, signers []uint) createWorkflowResp {
 	t.Helper()
 	fileKey := uploadSamplePDFFileKey(t, engine)
 	body := map[string]any{
@@ -45,10 +45,10 @@ func createWorkflowDraftViaAPI(t *testing.T, engine http.Handler, title, initiat
 		"fileName":    "sample.pdf",
 		"fileType":    "application/pdf",
 		"fileSize":    0,
-		"initiatorId": initiator,
+		"initiatorId": initiatorID,
 		"signers":     signers,
 	}
-	createRes := performJSON(engine, http.MethodPost, "/api/v1/workflows", body)
+	createRes := performJSONWithAuth(engine, http.MethodPost, "/api/v1/workflows", body, initiatorToken)
 	if createRes.Code != http.StatusOK {
 		t.Fatalf("create workflow status=%d body=%s", createRes.Code, createRes.Body.String())
 	}
@@ -67,7 +67,7 @@ func createWorkflowDraftViaAPI(t *testing.T, engine http.Handler, title, initiat
 }
 
 // putMinimalFieldAndActivate 保存一条签名字段并激活流程，使 workflow 进入 pending 且产生首条 task（与旧 admin 行为对齐，供签署/查询测试使用）。
-func putMinimalFieldAndActivate(t *testing.T, engine http.Handler, workflowID uint, fieldSignerID string) {
+func putMinimalFieldAndActivate(t *testing.T, engine http.Handler, workflowID uint, fieldSignerID uint, initiatorToken string) {
 	t.Helper()
 	fieldsBody := map[string]any{
 		"fields": []map[string]any{
@@ -79,11 +79,11 @@ func putMinimalFieldAndActivate(t *testing.T, engine http.Handler, workflowID ui
 				"y":          10.0,
 				"width":      80.0,
 				"height":     30.0,
-				"required":   true,
+				"required":   false,
 			},
 		},
 	}
-	putRes := performJSON(engine, http.MethodPut, "/api/v1/workflows/"+uintToString(workflowID)+"/fields", fieldsBody)
+	putRes := performJSONWithAuth(engine, http.MethodPut, "/api/v1/workflows/"+uintToString(workflowID)+"/fields", fieldsBody, initiatorToken)
 	if putRes.Code != http.StatusOK {
 		t.Fatalf("save fields status=%d body=%s", putRes.Code, putRes.Body.String())
 	}
@@ -95,7 +95,7 @@ func putMinimalFieldAndActivate(t *testing.T, engine http.Handler, workflowID ui
 		t.Fatalf("save fields code=%d msg=%s", wrap1.Code, wrap1.Msg)
 	}
 
-	actRes := performJSON(engine, http.MethodPost, "/api/v1/workflows/"+uintToString(workflowID)+"/activate", map[string]any{})
+	actRes := performJSONWithAuth(engine, http.MethodPost, "/api/v1/workflows/"+uintToString(workflowID)+"/activate", map[string]any{}, initiatorToken)
 	if actRes.Code != http.StatusOK {
 		t.Fatalf("activate status=%d body=%s", actRes.Code, actRes.Body.String())
 	}
@@ -109,9 +109,9 @@ func putMinimalFieldAndActivate(t *testing.T, engine http.Handler, workflowID ui
 }
 
 // createPendingWorkflowViaDraftAPI 通过「上传 → 创建草稿 → 字段 → 激活」得到可 Submit 的 pending 流程。
-func createPendingWorkflowViaDraftAPI(t *testing.T, engine http.Handler, title, initiator string, signers []string) createWorkflowResp {
+func createPendingWorkflowViaDraftAPI(t *testing.T, engine http.Handler, title string, initiatorToken string, initiatorID uint, signers []uint) createWorkflowResp {
 	t.Helper()
-	created := createWorkflowDraftViaAPI(t, engine, title, initiator, signers)
-	putMinimalFieldAndActivate(t, engine, created.WorkflowID, signers[0])
+	created := createWorkflowDraftViaAPI(t, engine, title, initiatorToken, initiatorID, signers)
+	putMinimalFieldAndActivate(t, engine, created.WorkflowID, signers[0], initiatorToken)
 	return created
 }

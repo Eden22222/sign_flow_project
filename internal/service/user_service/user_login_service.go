@@ -1,8 +1,6 @@
 package service
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -12,7 +10,6 @@ import (
 	"sign_flow_project/internal/model"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -44,12 +41,11 @@ type LoginRequest struct {
 }
 
 type AuthUserResult struct {
-	ID       uint   `json:"id"`
-	UserCode string `json:"userCode"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Avatar   string `json:"avatar"`
-	Status   string `json:"status"`
+	ID     uint   `json:"id"`
+	Name   string `json:"name"`
+	Email  string `json:"email"`
+	Avatar string `json:"avatar"`
+	Status string `json:"status"`
 }
 
 type AuthResult struct {
@@ -58,9 +54,8 @@ type AuthResult struct {
 }
 
 type jwtAccessClaims struct {
-	UserID   uint   `json:"user_id"`
-	UserCode string `json:"user_code"`
-	Email    string `json:"email"`
+	UserID uint   `json:"user_id"`
+	Email  string `json:"email"`
 	jwt.RegisteredClaims
 }
 
@@ -89,13 +84,7 @@ func (s *userLoginServiceImpl) Register(req RegisterRequest) (*AuthResult, error
 		return nil, err
 	}
 
-	userCode, err := allocateUserCode(name)
-	if err != nil {
-		return nil, err
-	}
-
 	u := &model.UserModel{
-		UserCode:     userCode,
 		Name:         name,
 		Email:        email,
 		Avatar:       DefaultAvatarFromName(name),
@@ -103,9 +92,6 @@ func (s *userLoginServiceImpl) Register(req RegisterRequest) (*AuthResult, error
 		PasswordHash: string(hash),
 	}
 	if err := dao.UserDao.Create(u); err != nil {
-		if dup, ok := translateUserCodeDuplicateError(err); ok {
-			return nil, dup
-		}
 		return nil, err
 	}
 
@@ -173,9 +159,8 @@ func (s *userLoginServiceImpl) signAccessToken(u *model.UserModel) (string, erro
 	}
 	now := time.Now()
 	claims := jwtAccessClaims{
-		UserID:   u.ID,
-		UserCode: u.UserCode,
-		Email:    u.Email,
+		UserID: u.ID,
+		Email:  u.Email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(accessTokenTTL)),
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -186,10 +171,10 @@ func (s *userLoginServiceImpl) signAccessToken(u *model.UserModel) (string, erro
 }
 
 // ParseAccessToken 校验 JWT 并返回 claims 中的用户标识（供 auth 中间件使用）。
-func (s *userLoginServiceImpl) ParseAccessToken(tokenStr string) (userID uint, userCode, email string, err error) {
+func (s *userLoginServiceImpl) ParseAccessToken(tokenStr string) (userID uint, email string, err error) {
 	tokenStr = strings.TrimSpace(tokenStr)
 	if tokenStr == "" {
-		return 0, "", "", ErrInvalidToken
+		return 0, "", ErrInvalidToken
 	}
 	var claims jwtAccessClaims
 	token, err := jwt.ParseWithClaims(tokenStr, &claims, func(t *jwt.Token) (interface{}, error) {
@@ -199,9 +184,9 @@ func (s *userLoginServiceImpl) ParseAccessToken(tokenStr string) (userID uint, u
 		return jwtSecret, nil
 	})
 	if err != nil || !token.Valid {
-		return 0, "", "", ErrInvalidToken
+		return 0, "", ErrInvalidToken
 	}
-	return claims.UserID, claims.UserCode, claims.Email, nil
+	return claims.UserID, claims.Email, nil
 }
 
 func normalizeEmail(s string) string {
@@ -213,80 +198,10 @@ func toAuthUserResult(u *model.UserModel) *AuthUserResult {
 		return nil
 	}
 	return &AuthUserResult{
-		ID:       u.ID,
-		UserCode: u.UserCode,
-		Name:     u.Name,
-		Email:    u.Email,
-		Avatar:   u.Avatar,
-		Status:   u.Status,
+		ID:     u.ID,
+		Name:   u.Name,
+		Email:  u.Email,
+		Avatar: u.Avatar,
+		Status: u.Status,
 	}
-}
-
-func allocateUserCode(name string) (string, error) {
-	base := userCodeSlugFromName(name)
-	for i := 0; i < 12; i++ {
-		code := base
-		if i > 0 {
-			code = base + "_" + randomHexSuffix()
-		}
-		_, err := dao.UserDao.SelectByUserCode(code)
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return code, nil
-		}
-		if err != nil {
-			return "", err
-		}
-	}
-	return "", fmt.Errorf("could not allocate userCode")
-}
-
-func userCodeSlugFromName(name string) string {
-	name = strings.TrimSpace(strings.ToLower(name))
-	var b strings.Builder
-	prevUnderscore := false
-	for _, r := range name {
-		switch {
-		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
-			b.WriteRune(r)
-			prevUnderscore = false
-		case r == ' ', r == '_', r == '-':
-			if b.Len() > 0 && !prevUnderscore {
-				b.WriteByte('_')
-				prevUnderscore = true
-			}
-		}
-	}
-	s := strings.Trim(b.String(), "_")
-	if s == "" {
-		s = "user"
-	}
-	return "u_" + s
-}
-
-func randomHexSuffix() string {
-	var buf [4]byte
-	_, _ = rand.Read(buf[:])
-	return hex.EncodeToString(buf[:])
-}
-
-// translateUserCodeDuplicateError 识别 user_code 唯一键冲突（GORM / PostgreSQL 23505 等），返回友好业务错误。
-// 与 CreateUser 共用，避免注册/管理接口暴露原始 DB 错误。
-func translateUserCodeDuplicateError(err error) (error, bool) {
-	if err == nil {
-		return nil, false
-	}
-	if errors.Is(err, gorm.ErrDuplicatedKey) {
-		return fmt.Errorf("userCode already exists"), true
-	}
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return fmt.Errorf("userCode already exists"), true
-	}
-	low := strings.ToLower(err.Error())
-	if strings.Contains(low, "duplicate key") ||
-		strings.Contains(low, "unique constraint") ||
-		strings.Contains(err.Error(), "23505") {
-		return fmt.Errorf("userCode already exists"), true
-	}
-	return nil, false
 }
