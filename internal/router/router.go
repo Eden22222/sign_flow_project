@@ -2,7 +2,9 @@ package router
 
 import (
 	"net/http"
-	"sign_flow_project/internal/handler"
+	"sign_flow_project/internal/handler/file"
+	"sign_flow_project/internal/handler/user"
+	"sign_flow_project/internal/handler/workflow"
 	"sign_flow_project/internal/infra/db"
 	"sign_flow_project/internal/middleware"
 	"sign_flow_project/internal/middleware/logging"
@@ -27,24 +29,28 @@ func InitRouter() *gin.Engine {
 
 func RegisterRoutes(r *gin.Engine) {
 	api := r.Group("/api/v1")
-	api.POST("/files/upload", handler.FileHandler.Upload)
+	api.POST("/files/upload", file.FileHandler.Upload)
 
-	api.POST("/users", handler.UserHandler.CreateUser)
-	api.GET("/users/:userCode", handler.UserHandler.GetByUserCode)
+	api.POST("/auth/register", user.UserLoginHandler.Register)
+	api.POST("/auth/login", user.UserLoginHandler.Login)
+	api.GET("/auth/me", middleware.JWTAuth(), user.UserLoginHandler.Me)
 
-	api.POST("/workflows", handler.WorkflowHandler.CreateWorkflow)
-	api.PUT("/workflows/:workflowId/fields", handler.WorkflowHandler.SaveFields)
-	api.POST("/workflows/:workflowId/activate", handler.WorkflowHandler.Activate)
+	api.POST("/users", user.UserHandler.CreateUser)
+	api.GET("/users/:userCode", user.UserHandler.GetByUserCode)
 
-	api.GET("/workflows", handler.WorkflowHandler.List)
-	api.GET("/workflows/:workflowId", handler.WorkflowHandler.GetDetail)
-	api.GET("/workflows/:workflowId/signing-detail", handler.WorkflowHandler.GetSigningDetail)
-	api.GET("/workflows/:workflowId/sign-fields", handler.WorkflowHandler.GetSignFields)
-	api.GET("/workflows/:workflowId/tasks", handler.WorkflowHandler.GetTasks)
-	api.GET("/workflows/:workflowId/signers", handler.WorkflowHandler.GetSigners)
-	api.GET("/documents/:documentId/preview", handler.FileHandler.PreviewDocument)
-	api.POST("/workflows/:workflowId/sign-fields/:fieldId/fill", handler.SigningHandler.FillSignField)
-	api.POST("/workflows/:workflowId/submit", handler.SigningHandler.Submit)
+	api.POST("/workflows", middleware.JWTAuth(), workflow.WorkflowHandler.CreateWorkflow)
+	api.PUT("/workflows/:workflowId/fields", middleware.JWTAuth(), workflow.WorkflowHandler.SaveFields)
+	api.POST("/workflows/:workflowId/activate", middleware.JWTAuth(), workflow.WorkflowHandler.Activate)
+
+	api.GET("/workflows", workflow.WorkflowHandler.List)
+	api.GET("/workflows/:workflowId", workflow.WorkflowHandler.GetDetail)
+	api.GET("/workflows/:workflowId/signing-detail", workflow.WorkflowHandler.GetSigningDetail)
+	api.GET("/workflows/:workflowId/sign-fields", workflow.WorkflowHandler.GetSignFields)
+	api.GET("/workflows/:workflowId/tasks", workflow.WorkflowHandler.GetTasks)
+	api.GET("/workflows/:workflowId/signers", workflow.WorkflowHandler.GetSigners)
+	api.GET("/documents/:documentId/preview", file.FileHandler.PreviewDocument)
+	api.POST("/workflows/:workflowId/sign-fields/:fieldId/fill", middleware.JWTAuth(), workflow.SigningHandler.FillSignField)
+	api.POST("/workflows/:workflowId/submit", middleware.JWTAuth(), workflow.SigningHandler.Submit)
 }
 
 func healthCheck(c *gin.Context) {

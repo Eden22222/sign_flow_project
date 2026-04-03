@@ -21,9 +21,13 @@ type ActivateWorkflowResult struct {
 	CurrentSignerID string `json:"currentSignerId"`
 }
 
-func (s *draftWorkflowServiceImpl) ActivateWorkflow(workflowID uint) (*ActivateWorkflowResult, error) {
+func (s *draftWorkflowServiceImpl) ActivateWorkflow(workflowID uint, currentUserCode string) (*ActivateWorkflowResult, error) {
 	if workflowID == 0 {
 		return nil, fmt.Errorf("workflowId is required")
+	}
+	currentUserCode = strings.TrimSpace(currentUserCode)
+	if currentUserCode == "" {
+		return nil, fmt.Errorf("current user is required")
 	}
 
 	db := infradb.GetPostgres()
@@ -42,6 +46,9 @@ func (s *draftWorkflowServiceImpl) ActivateWorkflow(workflowID uint) (*ActivateW
 		}
 		if workflow.Status != model.WorkflowStatusDraft {
 			return fmt.Errorf("only draft workflow can be activated")
+		}
+		if strings.TrimSpace(workflow.InitiatorID) != currentUserCode {
+			return fmt.Errorf("only initiator can activate workflow")
 		}
 
 		document, err := dao.DocumentDao.SelectByIDTx(tx, workflow.DocumentID)

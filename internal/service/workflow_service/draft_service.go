@@ -20,14 +20,15 @@ type draftWorkflowServiceImpl struct{}
 var DraftWorkflowService = new(draftWorkflowServiceImpl)
 
 type CreateWorkflowDraftRequest struct {
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	DueDate     string   `json:"dueDate"`
-	Priority    string   `json:"priority"`
-	FileKey     string   `json:"fileKey"`
-	FileName    string   `json:"fileName"`
-	FileType    string   `json:"fileType"`
-	FileSize    int64    `json:"fileSize"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	DueDate     string `json:"dueDate"`
+	Priority    string `json:"priority"`
+	FileKey     string `json:"fileKey"`
+	FileName    string `json:"fileName"`
+	FileType    string `json:"fileType"`
+	FileSize    int64  `json:"fileSize"`
+	// InitiatorID 须由已挂 JWTAuth 的 handler 从 token 解析后注入；body 中的 initiatorId 仅兼容旧客户端，service 以注入值为准。
 	InitiatorID string   `json:"initiatorId"`
 	Signers     []string `json:"signers"`
 }
@@ -42,7 +43,7 @@ type CreateWorkflowDraftResult struct {
 	DocumentVersion int    `json:"documentVersion"`
 }
 
-// ensureUserCodesExist 校验 initiatorId 非空且在 users 中存在；signers 中每一项（已与请求去重、trim）均须存在。
+// ensureUserCodesExist 校验发起人 userCode 非空且在 users 中存在；signers 中每一项（已与请求去重、trim）均须存在。发起人由 handler 从 JWT 写入 InitiatorID。
 func (s *draftWorkflowServiceImpl) ensureUserCodesExist(initiatorID string, signers []string) error {
 	initiatorID = strings.TrimSpace(initiatorID)
 	if initiatorID == "" {

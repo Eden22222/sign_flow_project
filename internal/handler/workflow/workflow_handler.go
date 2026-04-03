@@ -1,6 +1,8 @@
-package handler
+package workflow
 
 import (
+	"net/http"
+	"sign_flow_project/internal/middleware"
 	workflowsvc "sign_flow_project/internal/service/workflow_service"
 	"sign_flow_project/pkg/response"
 	"strconv"
@@ -21,6 +23,13 @@ func (h *workflowHandlerImpl) CreateWorkflow(c *gin.Context) {
 		response.BadRequestWithMessage("invalid request body", c)
 		return
 	}
+
+	userCode, ok := currentUserCodeFromContext(c)
+	if !ok {
+		response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "invalid current user", c)
+		return
+	}
+	req.InitiatorID = userCode
 
 	result, err := workflowsvc.DraftWorkflowService.CreateWorkflowDraft(req)
 	if err != nil {
@@ -149,7 +158,13 @@ func (h *workflowHandlerImpl) SaveFields(c *gin.Context) {
 		return
 	}
 
-	result, err := workflowsvc.DraftWorkflowService.SaveWorkflowFields(workflowID, req)
+	userCode, ok := currentUserCodeFromContext(c)
+	if !ok {
+		response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "invalid current user", c)
+		return
+	}
+
+	result, err := workflowsvc.DraftWorkflowService.SaveWorkflowFields(workflowID, userCode, req)
 	if err != nil {
 		respondWorkflowError(c, err)
 		return
@@ -164,13 +179,36 @@ func (h *workflowHandlerImpl) Activate(c *gin.Context) {
 		return
 	}
 
-	result, err := workflowsvc.DraftWorkflowService.ActivateWorkflow(workflowID)
+	userCode, ok := currentUserCodeFromContext(c)
+	if !ok {
+		response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "invalid current user", c)
+		return
+	}
+
+	result, err := workflowsvc.DraftWorkflowService.ActivateWorkflow(workflowID, userCode)
 	if err != nil {
 		respondWorkflowError(c, err)
 		return
 	}
 
 	response.OkWithData(result, c)
+}
+
+// currentUserCodeFromContext 读取 JWT 中间件写入的当前用户 userCode（供 workflow / signing handler 共用）。
+func currentUserCodeFromContext(c *gin.Context) (string, bool) {
+	v, ok := c.Get(middleware.CtxCurrentUserCode)
+	if !ok {
+		return "", false
+	}
+	s, ok := v.(string)
+	if !ok {
+		return "", false
+	}
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", false
+	}
+	return s, true
 }
 
 func parseWorkflowID(c *gin.Context) (uint, bool) {
@@ -191,6 +229,10 @@ func respondWorkflowError(c *gin.Context, err error) {
 	errMsg := err.Error()
 	if strings.Contains(errMsg, "not found") {
 		response.NotFoundWithMessage(errMsg, c)
+		return
+	}
+	if strings.Contains(errMsg, "only initiator can") {
+		response.ForbiddenWithMessage(errMsg, c)
 		return
 	}
 	if strings.Contains(errMsg, "required") ||

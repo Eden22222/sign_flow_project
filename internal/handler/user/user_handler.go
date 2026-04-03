@@ -1,4 +1,4 @@
-package handler
+package user
 
 import (
 	usersvc "sign_flow_project/internal/service/user_service"

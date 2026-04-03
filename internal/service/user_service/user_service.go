@@ -6,7 +6,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/jackc/pgx/v5/pgconn"
 	"sign_flow_project/internal/dao"
 	"sign_flow_project/internal/model"
 
@@ -83,27 +82,6 @@ func (s *userServiceImpl) CreateUser(req CreateUserRequest) (*CreateUserResult, 
 		Avatar:   u.Avatar,
 		Status:   u.Status,
 	}, nil
-}
-
-// translateUserCodeDuplicateError 将唯一约束冲突转为明确业务错误（避免并发下先查后插误判，且不暴露 500）。
-func translateUserCodeDuplicateError(err error) (error, bool) {
-	if err == nil {
-		return nil, false
-	}
-	if errors.Is(err, gorm.ErrDuplicatedKey) {
-		return fmt.Errorf("userCode already exists"), true
-	}
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return fmt.Errorf("userCode already exists"), true
-	}
-	low := strings.ToLower(err.Error())
-	if strings.Contains(low, "duplicate key") ||
-		strings.Contains(low, "unique constraint") ||
-		strings.Contains(err.Error(), "23505") {
-		return fmt.Errorf("userCode already exists"), true
-	}
-	return nil, false
 }
 
 func (s *userServiceImpl) GetByUserCode(userCode string) (*UserDetailResult, error) {
@@ -220,4 +198,9 @@ func extractLatinLettersUpper(w string) []rune {
 
 func isLatinLetter(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+}
+
+// DefaultAvatarFromName 供注册等流程复用，与 CreateUser 默认头像规则一致。
+func DefaultAvatarFromName(name string) string {
+	return defaultAvatarFromName(name)
 }

@@ -17,6 +17,7 @@ type signingServiceImpl struct{}
 
 var SigningService = new(signingServiceImpl)
 
+// SignerID 须由已挂 JWTAuth 的 handler 从 token 注入；body 中的 signerId 会被覆盖，勿信任前端。
 type SubmitSigningRequest struct {
 	SignerID string `json:"signerId"`
 }
@@ -32,6 +33,7 @@ type SubmitSigningResult struct {
 	DocumentVersion int                  `json:"documentVersion"`
 }
 
+// SignerID 须由已挂 JWTAuth 的 handler 从 token 注入；body 中的 signerId 会被覆盖，勿信任前端。
 type FillSignFieldRequest struct {
 	SignerID string `json:"signerId"`
 	// Mode 仅用于与前端约定输入合法性（draw/type/upload），validateFillSignFieldMode 校验；不入库、不驱动分支逻辑。
@@ -183,7 +185,8 @@ func (s *signingServiceImpl) Submit(workflowID uint, req SubmitSigningRequest) (
 	if workflowID == 0 {
 		return nil, fmt.Errorf("workflowId is required")
 	}
-	if req.SignerID == "" {
+	signerID := strings.TrimSpace(req.SignerID)
+	if signerID == "" {
 		return nil, fmt.Errorf("signerId is required")
 	}
 
@@ -227,11 +230,11 @@ func (s *signingServiceImpl) Submit(workflowID uint, req SubmitSigningRequest) (
 			return fmt.Errorf("workflow current step does not match pending task")
 		}
 
-		if currentTask.SignerID != req.SignerID {
+		if strings.TrimSpace(currentTask.SignerID) != signerID {
 			return fmt.Errorf("current pending task does not belong to signer")
 		}
 
-		signerFields, err := dao.DocumentFieldDao.SelectByWorkflowIDAndSignerIDTx(tx, workflowID, req.SignerID)
+		signerFields, err := dao.DocumentFieldDao.SelectByWorkflowIDAndSignerIDTx(tx, workflowID, signerID)
 		if err != nil {
 			return err
 		}

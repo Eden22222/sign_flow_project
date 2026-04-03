@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	"sign_flow_project/internal/infra/db"
@@ -120,6 +121,7 @@ func seedWorkflowTestUsers(t *testing.T, engine *gin.Engine) {
 		rec := performJSON(engine, http.MethodPost, "/api/v1/users", map[string]any{
 			"userCode": code,
 			"name":     "User " + code,
+			"email":    strings.ToLower(code) + "@test.local",
 		})
 		if rec.Code != http.StatusOK {
 			t.Fatalf("seed user %s status=%d body=%s", code, rec.Code, rec.Body.String())

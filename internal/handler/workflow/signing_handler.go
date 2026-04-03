@@ -1,6 +1,7 @@
-package handler
+package workflow
 
 import (
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -27,6 +28,13 @@ func (h *signingHandlerImpl) Submit(c *gin.Context) {
 		response.BadRequestWithMessage("invalid request body", c)
 		return
 	}
+
+	userCode, ok := currentUserCodeFromContext(c)
+	if !ok {
+		response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "invalid current user", c)
+		return
+	}
+	req.SignerID = userCode
 
 	result, err := workflowsvc.SigningService.Submit(uint(workflowID64), req)
 	if err != nil {
@@ -57,6 +65,13 @@ func (h *signingHandlerImpl) FillSignField(c *gin.Context) {
 		response.BadRequestWithMessage("invalid request body", c)
 		return
 	}
+
+	userCode, ok := currentUserCodeFromContext(c)
+	if !ok {
+		response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "invalid current user", c)
+		return
+	}
+	req.SignerID = userCode
 
 	result, err := workflowsvc.SigningService.FillSignField(uint(workflowID64), uint(fieldID64), req)
 	if err != nil {

@@ -33,9 +33,13 @@ type SaveWorkflowFieldsResult struct {
 	FieldCount int  `json:"fieldCount"`
 }
 
-func (s *draftWorkflowServiceImpl) SaveWorkflowFields(workflowID uint, req SaveWorkflowFieldsRequest) (*SaveWorkflowFieldsResult, error) {
+func (s *draftWorkflowServiceImpl) SaveWorkflowFields(workflowID uint, currentUserCode string, req SaveWorkflowFieldsRequest) (*SaveWorkflowFieldsResult, error) {
 	if workflowID == 0 {
 		return nil, fmt.Errorf("workflowId is required")
+	}
+	currentUserCode = strings.TrimSpace(currentUserCode)
+	if currentUserCode == "" {
+		return nil, fmt.Errorf("current user is required")
 	}
 	if len(req.Fields) == 0 {
 		return nil, fmt.Errorf("at least one field is required")
@@ -57,6 +61,9 @@ func (s *draftWorkflowServiceImpl) SaveWorkflowFields(workflowID uint, req SaveW
 		}
 		if workflow.Status != model.WorkflowStatusDraft {
 			return fmt.Errorf("workflow is not editable")
+		}
+		if strings.TrimSpace(workflow.InitiatorID) != currentUserCode {
+			return fmt.Errorf("only initiator can edit workflow fields")
 		}
 
 		signers, err := dao.WorkflowSignerDao.SelectByWorkflowIDTx(tx, workflowID)

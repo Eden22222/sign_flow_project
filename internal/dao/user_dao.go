@@ -101,6 +101,38 @@ func (d *userDaoImpl) SelectByUserCodeTx(tx *gorm.DB, userCode string) (*model.U
 	return &u, nil
 }
 
+func (d *userDaoImpl) SelectByEmail(email string) (*model.UserModel, error) {
+	db, err := defaultDB()
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	u := model.UserModel{}
+	res := db.Where("email = ?", email).First(&u)
+	if res.Error != nil {
+		if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			log.Error(res.Error)
+		}
+		return nil, res.Error
+	}
+	return &u, nil
+}
+
+func (d *userDaoImpl) SelectByEmailTx(tx *gorm.DB, email string) (*model.UserModel, error) {
+	if tx == nil {
+		return nil, errNilDB
+	}
+	u := model.UserModel{}
+	res := tx.Where("email = ?", email).First(&u)
+	if res.Error != nil {
+		if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			log.Error(res.Error)
+		}
+		return nil, res.Error
+	}
+	return &u, nil
+}
+
 func (d *userDaoImpl) SelectByUserCodes(userCodes []string) ([]model.UserModel, error) {
 	if len(userCodes) == 0 {
 		return []model.UserModel{}, nil
