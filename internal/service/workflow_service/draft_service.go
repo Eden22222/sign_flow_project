@@ -43,42 +43,71 @@ type CreateWorkflowDraftResult struct {
 	DocumentVersion int    `json:"documentVersion"`
 }
 
-// ensureUserCodesExist 校验发起人 userCode 非空且在 users 中存在；signers 中每一项（已与请求去重、trim）均须存在。发起人由 handler 从 JWT 写入 InitiatorID。
-func (s *draftWorkflowServiceImpl) ensureUserCodesExist(initiatorID string, signers []string) error {
+// resolveUserCodes 将发起人与签署人标识统一解析为 userCode，兼容传入 userCode 或 email。
+func (s *draftWorkflowServiceImpl) resolveUserCodes(initiatorID string, signers []string) (string, []string, error) {
 	initiatorID = strings.TrimSpace(initiatorID)
 	if initiatorID == "" {
-		return fmt.Errorf("initiatorId is required")
+		return "", nil, fmt.Errorf("initiatorId is required")
 	}
+
 	uniqSeen := make(map[string]struct{}, 1+len(signers))
 	uniq := make([]string, 0, 1+len(signers))
-	add := func(code string) {
-		if _, ok := uniqSeen[code]; ok {
+	add := func(id string) {
+		if _, ok := uniqSeen[id]; ok {
 			return
 		}
-		uniqSeen[code] = struct{}{}
-		uniq = append(uniq, code)
+		uniqSeen[id] = struct{}{}
+		uniq = append(uniq, id)
 	}
 	add(initiatorID)
 	for _, sid := range signers {
 		add(sid)
 	}
-	users, err := dao.UserDao.SelectByUserCodes(uniq)
-	if err != nil {
-		return err
+
+	userCodes := make([]string, 0, len(uniq))
+	emails := make([]string, 0, len(uniq))
+	for _, id := range uniq {
+		if strings.Contains(id, "@") {
+			emails = append(emails, id)
+			continue
+		}
+		userCodes = append(userCodes, id)
 	}
-	found := make(map[string]struct{}, len(users))
-	for _, u := range users {
-		found[u.UserCode] = struct{}{}
-	}
-	if _, ok := found[initiatorID]; !ok {
-		return fmt.Errorf("initiator not found")
-	}
-	for _, sid := range signers {
-		if _, ok := found[sid]; !ok {
-			return fmt.Errorf("signer not found: %s", sid)
+
+	resolved := make(map[string]string, len(uniq))
+	if len(userCodes) > 0 {
+		users, err := dao.UserDao.SelectByUserCodes(userCodes)
+		if err != nil {
+			return "", nil, err
+		}
+		for _, u := range users {
+			resolved[u.UserCode] = u.UserCode
 		}
 	}
-	return nil
+	if len(emails) > 0 {
+		users, err := dao.UserDao.SelectByEmails(emails)
+		if err != nil {
+			return "", nil, err
+		}
+		for _, u := range users {
+			resolved[u.Email] = u.UserCode
+		}
+	}
+
+	resolvedInitiator, ok := resolved[initiatorID]
+	if !ok {
+		return "", nil, fmt.Errorf("initiator not found")
+	}
+
+	resolvedSigners := make([]string, 0, len(signers))
+	for _, sid := range signers {
+		code, exists := resolved[sid]
+		if !exists {
+			return "", nil, fmt.Errorf("signer not found: %s", sid)
+		}
+		resolvedSigners = append(resolvedSigners, code)
+	}
+	return resolvedInitiator, resolvedSigners, nil
 }
 
 func (s *draftWorkflowServiceImpl) CreateWorkflowDraft(req CreateWorkflowDraftRequest) (*CreateWorkflowDraftResult, error) {
@@ -109,7 +138,8 @@ func (s *draftWorkflowServiceImpl) CreateWorkflowDraft(req CreateWorkflowDraftRe
 	}
 
 	initiatorID := strings.TrimSpace(req.InitiatorID)
-	if err := s.ensureUserCodesExist(initiatorID, signers); err != nil {
+	resolvedInitiatorID, resolvedSigners, err := s.resolveUserCodes(initiatorID, signers)
+	if err != nil {
 		return nil, err
 	}
 
@@ -167,7 +197,7 @@ func (s *draftWorkflowServiceImpl) CreateWorkflowDraft(req CreateWorkflowDraftRe
 
 		workflow := &model.WorkflowModel{
 			DocumentID:  document.ID,
-			InitiatorID: initiatorID,
+			InitiatorID: resolvedInitiatorID,
 			CurrentStep: 1,
 			Status:      model.WorkflowStatusDraft,
 		}
@@ -175,8 +205,8 @@ func (s *draftWorkflowServiceImpl) CreateWorkflowDraft(req CreateWorkflowDraftRe
 			return err
 		}
 
-		workflowSigners := make([]*model.WorkflowSignerModel, 0, len(signers))
-		for i, signerID := range signers {
+		workflowSigners := make([]*model.WorkflowSignerModel, 0, len(resolvedSigners))
+		for i, signerID := range resolvedSigners {
 			workflowSigners = append(workflowSigners, &model.WorkflowSignerModel{
 				WorkflowID: workflow.ID,
 				SignerID:   signerID,

@@ -27,38 +27,53 @@ type authRegisterResult struct {
 func TestAuthRegister_OK(t *testing.T) {
 	engine := setupAuthRegisterTestEngine(t)
 
-	rec := performJSON(engine, http.MethodPost, "/api/v1/auth/register", map[string]any{
-		"name":     "Alice Johnson",
-		"email":    "Alice@Example.com",
-		"password": "password123",
-	})
-	if rec.Code != http.StatusOK {
-		t.Fatalf("register status=%d body=%s", rec.Code, rec.Body.String())
+	users := []struct {
+		name            string
+		email           string
+		password        string
+		normalizedEmail string
+	}{
+		{name: "Alice Johnson", email: "Alice@Example.com", password: "password123", normalizedEmail: "alice@example.com"},
+		{name: "David Miller", email: "David.Miller@Example.com", password: "davidPass123", normalizedEmail: "david.miller@example.com"},
+		{name: "Emma Wilson", email: "EMMA.WILSON@EXAMPLE.COM", password: "emmaPass123", normalizedEmail: "emma.wilson@example.com"},
+		{name: "Frank Lee", email: " frank.lee@example.com ", password: "frankPass123", normalizedEmail: "frank.lee@example.com"},
+		{name: "Grace Chen", email: "Grace.Chen@Example.com", password: "gracePass123", normalizedEmail: "grace.chen@example.com"},
 	}
 
-	var wrapper apiResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &wrapper); err != nil {
-		t.Fatalf("unmarshal register wrapper failed: %v", err)
-	}
-	if wrapper.Code != http.StatusOK {
-		t.Fatalf("register code=%d msg=%s", wrapper.Code, wrapper.Msg)
-	}
+	for _, u := range users {
+		rec := performJSON(engine, http.MethodPost, "/api/v1/auth/register", map[string]any{
+			"name":     u.name,
+			"email":    u.email,
+			"password": u.password,
+		})
+		if rec.Code != http.StatusOK {
+			t.Fatalf("register %s status=%d body=%s", u.email, rec.Code, rec.Body.String())
+		}
 
-	var data authRegisterResult
-	if err := json.Unmarshal(wrapper.Data, &data); err != nil {
-		t.Fatalf("unmarshal register data failed: %v", err)
-	}
-	if data.User.ID == 0 {
-		t.Fatalf("register expect user.id > 0")
-	}
-	if data.User.Email != "alice@example.com" {
-		t.Fatalf("register expect normalized email=alice@example.com, got %q", data.User.Email)
-	}
-	if data.User.UserCode == "" {
-		t.Fatalf("register expect userCode generated")
-	}
-	if data.AccessToken == "" {
-		t.Fatalf("register expect accessToken not empty")
+		var wrapper apiResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &wrapper); err != nil {
+			t.Fatalf("unmarshal register wrapper failed: %v", err)
+		}
+		if wrapper.Code != http.StatusOK {
+			t.Fatalf("register %s code=%d msg=%s", u.email, wrapper.Code, wrapper.Msg)
+		}
+
+		var data authRegisterResult
+		if err := json.Unmarshal(wrapper.Data, &data); err != nil {
+			t.Fatalf("unmarshal register data failed: %v", err)
+		}
+		if data.User.ID == 0 {
+			t.Fatalf("register %s expect user.id > 0", u.email)
+		}
+		if data.User.Email != u.normalizedEmail {
+			t.Fatalf("register %s expect normalized email=%s, got %q", u.email, u.normalizedEmail, data.User.Email)
+		}
+		if data.User.UserCode == "" {
+			t.Fatalf("register %s expect userCode generated", u.email)
+		}
+		if data.AccessToken == "" {
+			t.Fatalf("register %s expect accessToken not empty", u.email)
+		}
 	}
 }
 

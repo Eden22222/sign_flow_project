@@ -150,3 +150,21 @@ func (d *userDaoImpl) SelectByUserCodes(userCodes []string) ([]model.UserModel, 
 	}
 	return users, nil
 }
+
+func (d *userDaoImpl) SelectByEmails(emails []string) ([]model.UserModel, error) {
+	if len(emails) == 0 {
+		return []model.UserModel{}, nil
+	}
+	db, err := defaultDB()
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	var users []model.UserModel
+	res := db.Where("email IN ?", emails).Find(&users)
+	if res.Error != nil {
+		log.Error(res.Error)
+		return nil, res.Error
+	}
+	return users, nil
+}

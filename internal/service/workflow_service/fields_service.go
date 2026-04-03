@@ -12,6 +12,20 @@ import (
 	"gorm.io/gorm"
 )
 
+func normalizeSignerIDToUserCode(rawSignerID string, emailToUserCode map[string]string) string {
+	sid := strings.TrimSpace(rawSignerID)
+	if sid == "" {
+		return sid
+	}
+	if !strings.Contains(sid, "@") {
+		return sid
+	}
+	if code, ok := emailToUserCode[sid]; ok {
+		return code
+	}
+	return sid
+}
+
 type SaveWorkflowFieldsRequest struct {
 	Fields []SaveWorkflowFieldItem `json:"fields"`
 }
@@ -75,9 +89,33 @@ func (s *draftWorkflowServiceImpl) SaveWorkflowFields(workflowID uint, currentUs
 			signerSet[s.SignerID] = struct{}{}
 		}
 
+		fieldEmails := make([]string, 0, len(req.Fields))
+		seenEmail := make(map[string]struct{}, len(req.Fields))
+		for _, f := range req.Fields {
+			sid := strings.TrimSpace(f.SignerID)
+			if sid == "" || !strings.Contains(sid, "@") {
+				continue
+			}
+			if _, exists := seenEmail[sid]; exists {
+				continue
+			}
+			seenEmail[sid] = struct{}{}
+			fieldEmails = append(fieldEmails, sid)
+		}
+		emailToUserCode := make(map[string]string, len(fieldEmails))
+		if len(fieldEmails) > 0 {
+			users, err := dao.UserDao.SelectByEmails(fieldEmails)
+			if err != nil {
+				return err
+			}
+			for _, u := range users {
+				emailToUserCode[u.Email] = u.UserCode
+			}
+		}
+
 		fields := make([]*model.DocumentFieldModel, 0, len(req.Fields))
 		for i, f := range req.Fields {
-			sid := strings.TrimSpace(f.SignerID)
+			sid := normalizeSignerIDToUserCode(f.SignerID, emailToUserCode)
 			if sid == "" {
 				return fmt.Errorf("signer at index %d is empty", i)
 			}
