@@ -14,12 +14,11 @@ import (
 
 type authRegisterResult struct {
 	User struct {
-		ID       uint   `json:"id"`
-		UserCode string `json:"userCode"`
-		Name     string `json:"name"`
-		Email    string `json:"email"`
-		Avatar   string `json:"avatar"`
-		Status   string `json:"status"`
+		ID     uint   `json:"id"`
+		Name   string `json:"name"`
+		Email  string `json:"email"`
+		Avatar string `json:"avatar"`
+		Status string `json:"status"`
 	} `json:"user"`
 	AccessToken string `json:"accessToken"`
 }
@@ -67,9 +66,6 @@ func TestAuthRegister_OK(t *testing.T) {
 		}
 		if data.User.Email != u.normalizedEmail {
 			t.Fatalf("register %s expect normalized email=%s, got %q", u.email, u.normalizedEmail, data.User.Email)
-		}
-		if data.User.UserCode == "" {
-			t.Fatalf("register %s expect userCode generated", u.email)
 		}
 		if data.AccessToken == "" {
 			t.Fatalf("register %s expect accessToken not empty", u.email)

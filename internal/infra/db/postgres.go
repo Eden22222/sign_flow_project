@@ -84,6 +84,9 @@ func PostgresSetup() (*gorm.DB, error) {
 			return
 		}
 
+		// Hard-cut migration note:
+		// user reference columns are now integer user IDs. Existing string data in old tables
+		// may fail cast during AutoMigrate and must be cleaned or migrated manually.
 		if err := gormDB.AutoMigrate(
 			&model.UserModel{},
 			&model.DocumentModel{},

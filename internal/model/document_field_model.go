@@ -12,7 +12,7 @@ type DocumentFieldModel struct {
 
 	DocumentID uint   `json:"documentId" gorm:"column:document_id;type:integer;not null;index"`
 	WorkflowID uint   `json:"workflowId" gorm:"column:workflow_id;type:integer;not null;index"`
-	SignerID   string `json:"signerId" gorm:"column:signer_id;type:varchar(100);not null;index"`
+	SignerID   uint   `json:"signerId" gorm:"column:signer_id;type:integer;not null;index"`
 
 	FieldType  string  `json:"fieldType" gorm:"column:field_type;type:varchar(50);not null"`
 	PageNumber int     `json:"pageNumber" gorm:"column:page_number;type:integer;not null"`

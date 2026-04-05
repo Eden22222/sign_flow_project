@@ -20,13 +20,13 @@ type workflowDetailResp struct {
 	WorkflowStatus  string `json:"workflowStatus"`
 	DocumentStatus  string `json:"documentStatus"`
 	DocumentVersion int    `json:"documentVersion"`
-	CurrentSignerID string `json:"currentSignerId"`
+	CurrentSignerID uint   `json:"currentSignerId"`
 }
 
 type workflowTaskItemResp struct {
 	TaskID     uint   `json:"taskId"`
 	WorkflowID uint   `json:"workflowId"`
-	SignerID   string `json:"signerId"`
+	SignerID   uint   `json:"signerId"`
 	StepIndex  int    `json:"stepIndex"`
 	Status     string `json:"status"`
 }
@@ -37,7 +37,7 @@ type workflowTaskListResp struct {
 }
 
 type workflowSignerItemResp struct {
-	SignerID  string `json:"signerId"`
+	SignerID  uint   `json:"signerId"`
 	StepIndex int    `json:"stepIndex"`
 }
 
@@ -47,12 +47,10 @@ type workflowSignerListResp struct {
 }
 
 func TestGetWorkflowDetail(t *testing.T) {
-	engine, workflowID := setupQueryTestEngineAndWorkflow(t)
+	engine, workflowID, users := setupQueryTestEngineAndWorkflow(t)
 
 	// 推进一步后，当前签署人应变为 B，版本应 +1，状态应为 signing/pending
-	submitRes := performJSON(engine, http.MethodPost, "/api/v1/workflows/"+uintToString(workflowID)+"/submit", map[string]any{
-		"signerId": "A",
-	})
+	submitRes := performJSONWithAuth(engine, http.MethodPost, "/api/v1/workflows/"+uintToString(workflowID)+"/submit", map[string]any{}, users["A"].Token)
 	assertSubmitOK(t, submitRes, "A submit for detail test")
 
 	getRes := performJSON(engine, http.MethodGet, "/api/v1/workflows/"+uintToString(workflowID), nil)
@@ -83,8 +81,8 @@ func TestGetWorkflowDetail(t *testing.T) {
 	if data.CurrentStep != 2 {
 		t.Fatalf("expect currentStep=2, got %d", data.CurrentStep)
 	}
-	if data.CurrentSignerID != "B" {
-		t.Fatalf("expect currentSignerId=B, got %s", data.CurrentSignerID)
+	if data.CurrentSignerID != users["B"].ID {
+		t.Fatalf("expect currentSignerId=%d, got %d", users["B"].ID, data.CurrentSignerID)
 	}
 	if data.WorkflowStatus != string(model.WorkflowStatusPending) {
 		t.Fatalf("expect workflowStatus=%s, got %s", model.WorkflowStatusPending, data.WorkflowStatus)
@@ -98,12 +96,10 @@ func TestGetWorkflowDetail(t *testing.T) {
 }
 
 func TestGetWorkflowTasks(t *testing.T) {
-	engine, workflowID := setupQueryTestEngineAndWorkflow(t)
+	engine, workflowID, users := setupQueryTestEngineAndWorkflow(t)
 
 	// 先签一步，这样应该有两条 task：A signed, B pending
-	submitRes := performJSON(engine, http.MethodPost, "/api/v1/workflows/"+uintToString(workflowID)+"/submit", map[string]any{
-		"signerId": "A",
-	})
+	submitRes := performJSONWithAuth(engine, http.MethodPost, "/api/v1/workflows/"+uintToString(workflowID)+"/submit", map[string]any{}, users["A"].Token)
 	assertSubmitOK(t, submitRes, "A submit for tasks test")
 
 	getRes := performJSON(engine, http.MethodGet, "/api/v1/workflows/"+uintToString(workflowID)+"/tasks", nil)
@@ -134,16 +130,16 @@ func TestGetWorkflowTasks(t *testing.T) {
 
 	first := data.Tasks[0]
 	second := data.Tasks[1]
-	if first.StepIndex != 1 || first.SignerID != "A" || first.Status != string(model.TaskStatusSigned) {
-		t.Fatalf("expect first task step=1 signer=A status=signed, got step=%d signer=%s status=%s", first.StepIndex, first.SignerID, first.Status)
+	if first.StepIndex != 1 || first.SignerID != users["A"].ID || first.Status != string(model.TaskStatusSigned) {
+		t.Fatalf("expect first task step=1 signer=%d status=signed, got step=%d signer=%d status=%s", users["A"].ID, first.StepIndex, first.SignerID, first.Status)
 	}
-	if second.StepIndex != 2 || second.SignerID != "B" || second.Status != string(model.TaskStatusPending) {
-		t.Fatalf("expect second task step=2 signer=B status=pending, got step=%d signer=%s status=%s", second.StepIndex, second.SignerID, second.Status)
+	if second.StepIndex != 2 || second.SignerID != users["B"].ID || second.Status != string(model.TaskStatusPending) {
+		t.Fatalf("expect second task step=2 signer=%d status=pending, got step=%d signer=%d status=%s", users["B"].ID, second.StepIndex, second.SignerID, second.Status)
 	}
 }
 
 func TestGetWorkflowSigners(t *testing.T) {
-	engine, workflowID := setupQueryTestEngineAndWorkflow(t)
+	engine, workflowID, users := setupQueryTestEngineAndWorkflow(t)
 
 	getRes := performJSON(engine, http.MethodGet, "/api/v1/workflows/"+uintToString(workflowID)+"/signers", nil)
 	if getRes.Code != http.StatusOK {
@@ -170,18 +166,18 @@ func TestGetWorkflowSigners(t *testing.T) {
 	if len(data.Signers) != 3 {
 		t.Fatalf("expect signers length=3, got %d", len(data.Signers))
 	}
-	if data.Signers[0].StepIndex != 1 || data.Signers[0].SignerID != "A" {
-		t.Fatalf("expect signer1 step=1 signer=A, got step=%d signer=%s", data.Signers[0].StepIndex, data.Signers[0].SignerID)
+	if data.Signers[0].StepIndex != 1 || data.Signers[0].SignerID != users["A"].ID {
+		t.Fatalf("expect signer1 step=1 signer=%d, got step=%d signer=%d", users["A"].ID, data.Signers[0].StepIndex, data.Signers[0].SignerID)
 	}
-	if data.Signers[1].StepIndex != 2 || data.Signers[1].SignerID != "B" {
-		t.Fatalf("expect signer2 step=2 signer=B, got step=%d signer=%s", data.Signers[1].StepIndex, data.Signers[1].SignerID)
+	if data.Signers[1].StepIndex != 2 || data.Signers[1].SignerID != users["B"].ID {
+		t.Fatalf("expect signer2 step=2 signer=%d, got step=%d signer=%d", users["B"].ID, data.Signers[1].StepIndex, data.Signers[1].SignerID)
 	}
-	if data.Signers[2].StepIndex != 3 || data.Signers[2].SignerID != "C" {
-		t.Fatalf("expect signer3 step=3 signer=C, got step=%d signer=%s", data.Signers[2].StepIndex, data.Signers[2].SignerID)
+	if data.Signers[2].StepIndex != 3 || data.Signers[2].SignerID != users["C"].ID {
+		t.Fatalf("expect signer3 step=3 signer=%d, got step=%d signer=%d", users["C"].ID, data.Signers[2].StepIndex, data.Signers[2].SignerID)
 	}
 }
 
-func setupQueryTestEngineAndWorkflow(t *testing.T) (*gin.Engine, uint) {
+func setupQueryTestEngineAndWorkflow(t *testing.T) (*gin.Engine, uint, map[string]testUserSeed) {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -199,9 +195,16 @@ func setupQueryTestEngineAndWorkflow(t *testing.T) (*gin.Engine, uint) {
 
 	engine := gin.New()
 	router.RegisterRoutes(engine)
-	seedWorkflowTestUsers(t, engine)
+	users := seedWorkflowTestUsers(t, engine)
 
-	created := createPendingWorkflowViaDraftAPI(t, engine, "query-test-doc", "A", []string{"A", "B", "C"})
+	created := createPendingWorkflowViaDraftAPI(
+		t,
+		engine,
+		"query-test-doc",
+		users["A"].Token,
+		users["A"].ID,
+		[]uint{users["A"].ID, users["B"].ID, users["C"].ID},
+	)
 
-	return engine, created.WorkflowID
+	return engine, created.WorkflowID, users
 }

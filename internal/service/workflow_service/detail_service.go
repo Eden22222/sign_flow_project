@@ -14,7 +14,7 @@ import (
 )
 
 type WorkflowDetailSignerItem struct {
-	SignerID  string `json:"signerId"`
+	SignerID  uint   `json:"signerId"`
 	Name      string `json:"name"`
 	Avatar    string `json:"avatar"`
 	StepIndex int    `json:"stepIndex"`
@@ -29,8 +29,8 @@ type WorkflowDetailResult struct {
 	WorkflowStatus  model.WorkflowStatus       `json:"workflowStatus"`
 	DocumentStatus  model.DocumentStatus       `json:"documentStatus"`
 	DocumentVersion int                        `json:"documentVersion"`
-	CurrentSignerID string                     `json:"currentSignerId"`
-	InitiatorID     string                     `json:"initiatorId"`
+	CurrentSignerID uint                       `json:"currentSignerId"`
+	InitiatorID     uint                       `json:"initiatorId"`
 	Initiator       string                     `json:"initiator"`
 	InitiatorAvatar string                     `json:"initiatorAvatar"`
 	Description     string                     `json:"description"`
@@ -65,26 +65,24 @@ func (s *workflowQueryServiceImpl) GetDetail(workflowID uint) (*WorkflowDetailRe
 		return nil, err
 	}
 
-	codes := make([]string, 0, 1+len(wfSigners))
-	if ic := strings.TrimSpace(workflow.InitiatorID); ic != "" {
-		codes = append(codes, ic)
+	ids := make([]uint, 0, 1+len(wfSigners))
+	if workflow.InitiatorID != 0 {
+		ids = append(ids, workflow.InitiatorID)
 	}
 	for i := range wfSigners {
-		codes = append(codes, wfSigners[i].SignerID)
+		ids = append(ids, wfSigners[i].SignerID)
 	}
-	userMap, err := usersvc.UserService.BatchGetMapByUserCodes(codes)
+	userMap, err := usersvc.UserService.BatchGetMapByIDs(ids)
 	if err != nil {
 		return nil, err
 	}
 
-	initiatorID := strings.TrimSpace(workflow.InitiatorID)
+	initiatorID := workflow.InitiatorID
 	initiatorName := ""
 	initiatorAvatar := ""
-	if initiatorID != "" {
-		if u, ok := userMap[initiatorID]; ok {
-			initiatorName = u.Name
-			initiatorAvatar = u.Avatar
-		}
+	if u, ok := userMap[initiatorID]; ok {
+		initiatorName = u.Name
+		initiatorAvatar = u.Avatar
 	}
 
 	signerItems := make([]WorkflowDetailSignerItem, 0, len(wfSigners))
@@ -105,7 +103,7 @@ func (s *workflowQueryServiceImpl) GetDetail(workflowID uint) (*WorkflowDetailRe
 		})
 	}
 
-	currentSignerID := ""
+	currentSignerID := uint(0)
 	currentTask, err := dao.TaskDao.SelectCurrentPendingByWorkflowID(workflowID)
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -137,7 +135,7 @@ func (s *workflowQueryServiceImpl) GetDetail(workflowID uint) (*WorkflowDetailRe
 // --- 签署执行页详情（子功能 A）---
 
 type SigningDetailSignerItem struct {
-	SignerID  string `json:"signerId"`
+	SignerID  uint   `json:"signerId"`
 	Name      string `json:"name"`
 	Avatar    string `json:"avatar"`
 	StepIndex int    `json:"stepIndex"`
@@ -156,7 +154,7 @@ type SigningDetailResult struct {
 	DocumentName    string                    `json:"documentName"`
 	CurrentStep     int                       `json:"currentStep"`
 	TotalSteps      int                       `json:"totalSteps"`
-	CurrentSignerID string                    `json:"currentSignerId"`
+	CurrentSignerID uint                      `json:"currentSignerId"`
 	WorkflowStatus  model.WorkflowStatus      `json:"workflowStatus"`
 	DocumentStatus  model.DocumentStatus      `json:"documentStatus"`
 	CreatedAt       string                    `json:"createdAt"`
@@ -191,11 +189,11 @@ func (s *workflowQueryServiceImpl) GetSigningDetail(workflowID uint) (*SigningDe
 		return nil, err
 	}
 
-	codes := make([]string, 0, len(wfSigners))
+	ids := make([]uint, 0, len(wfSigners))
 	for i := range wfSigners {
-		codes = append(codes, wfSigners[i].SignerID)
+		ids = append(ids, wfSigners[i].SignerID)
 	}
-	userMap, err := usersvc.UserService.BatchGetMapByUserCodes(codes)
+	userMap, err := usersvc.UserService.BatchGetMapByIDs(ids)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +216,7 @@ func (s *workflowQueryServiceImpl) GetSigningDetail(workflowID uint) (*SigningDe
 		})
 	}
 
-	currentSignerID := ""
+	currentSignerID := uint(0)
 	currentTask, err := dao.TaskDao.SelectCurrentPendingByWorkflowID(workflowID)
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -269,7 +267,7 @@ type SignFieldItem struct {
 	FieldID              uint    `json:"fieldId"`
 	DocumentID           uint    `json:"documentId"`
 	WorkflowID           uint    `json:"workflowId"`
-	SignerID             string  `json:"signerId"`
+	SignerID             uint    `json:"signerId"`
 	FieldType            string  `json:"fieldType"`
 	PageNumber           int     `json:"pageNumber"`
 	X                    float64 `json:"x"`
@@ -286,7 +284,7 @@ type SignFieldItem struct {
 type SignFieldListResult struct {
 	WorkflowID      uint            `json:"workflowId"`
 	DocumentID      uint            `json:"documentId"`
-	CurrentSignerID string          `json:"currentSignerId"`
+	CurrentSignerID uint            `json:"currentSignerId"`
 	Items           []SignFieldItem `json:"items"`
 }
 
@@ -305,14 +303,14 @@ func (s *workflowQueryServiceImpl) GetSignFields(workflowID uint) (*SignFieldLis
 
 	documentID := workflow.DocumentID
 
-	currentSignerID := ""
+	currentSignerID := uint(0)
 	currentTask, err := dao.TaskDao.SelectCurrentPendingByWorkflowID(workflowID)
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
 	} else {
-		currentSignerID = strings.TrimSpace(currentTask.SignerID)
+		currentSignerID = currentTask.SignerID
 	}
 
 	fields, err := dao.DocumentFieldDao.SelectByWorkflowID(workflowID)
@@ -323,8 +321,8 @@ func (s *workflowQueryServiceImpl) GetSignFields(workflowID uint) (*SignFieldLis
 	items := make([]SignFieldItem, 0, len(fields))
 	for i := range fields {
 		f := fields[i]
-		sid := strings.TrimSpace(f.SignerID)
-		isCurrent := currentSignerID != "" && sid == currentSignerID
+		sid := f.SignerID
+		isCurrent := currentSignerID != 0 && sid == currentSignerID
 		clickable := workflow.Status == model.WorkflowStatusPending &&
 			strings.EqualFold(strings.TrimSpace(f.Status), string(model.DocumentFieldStatusPending)) &&
 			strings.EqualFold(strings.TrimSpace(f.FieldType), "signature") &&
