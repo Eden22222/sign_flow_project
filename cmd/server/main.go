@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"sign_flow_project/internal/config"
 	"sign_flow_project/internal/infra/db"
 	"sign_flow_project/internal/middleware/logging"
 	"sign_flow_project/internal/router"
@@ -9,6 +10,7 @@ import (
 
 func init() {
 	logging.Setup()
+	config.LoadEnv()
 
 	_, err := db.PostgresSetup()
 	if err != nil {

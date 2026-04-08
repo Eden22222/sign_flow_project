@@ -5,6 +5,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"sign_flow_project/internal/config"
 	"sign_flow_project/internal/model"
 	"strings"
 	"sync"
@@ -21,14 +22,14 @@ func PostgresSetup() (*gorm.DB, error) {
 	dbOnce.Do(func() {
 
 		//Todo： 这里先写死，后面再改成配置文件
-		host := "localhost"
-		port := "5432"
-		user := "postgres"
-		password := "123456"
-		dbName := "signflow"
-		sslmode := "disable"
-		timeZone := "Asia/Shanghai"
-		clientEncoding := "UTF8"
+		host := config.GetEnv("DB_HOST", "localhost")
+		port := config.GetEnv("DB_PORT", "5432")
+		user := config.GetEnv("DB_USER", "postgres")
+		password := config.GetEnv("DB_PASSWORD", "")
+		dbName := config.GetEnv("DB_NAME", "signflow")
+		sslmode := config.GetEnv("DB_SSLMODE", "disable")
+		timeZone := config.GetEnv("DB_TIMEZONE", "Asia/Shanghai")
+		clientEncoding := config.GetEnv("DB_CLIENT_ENCODING", "UTF8")
 		loc, err := time.LoadLocation(timeZone)
 		if err != nil {
 			dbErr = fmt.Errorf("load location failed: %w", err)
