@@ -25,7 +25,7 @@ func PostgresSetup() (*gorm.DB, error) {
 		host := config.GetEnv("DB_HOST", "localhost")
 		port := config.GetEnv("DB_PORT", "5432")
 		user := config.GetEnv("DB_USER", "postgres")
-		password := config.GetEnv("DB_PASSWORD", "")
+		password := config.GetEnv("DB_PASSWORD", "123456")
 		dbName := config.GetEnv("DB_NAME", "signflow")
 		sslmode := config.GetEnv("DB_SSLMODE", "disable")
 		timeZone := config.GetEnv("DB_TIMEZONE", "Asia/Shanghai")

@@ -34,6 +34,7 @@ func RegisterRoutes(r *gin.Engine) {
 	api.POST("/auth/register", user.UserLoginHandler.Register)
 	api.POST("/auth/login", user.UserLoginHandler.Login)
 	api.GET("/auth/me", middleware.JWTAuth(), user.UserLoginHandler.Me)
+	api.POST("/auth/logout", middleware.JWTAuth(), user.UserLoginHandler.Logout)
 
 	api.POST("/users", user.UserHandler.CreateUser)
 	api.GET("/users/:id", user.UserHandler.GetByID)

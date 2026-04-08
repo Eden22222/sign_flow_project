@@ -170,23 +170,60 @@ func (s *userLoginServiceImpl) signAccessToken(u *model.UserModel) (string, erro
 	return t.SignedString(jwtSecret)
 }
 
-// ParseAccessToken 校验 JWT 并返回 claims 中的用户标识（供 auth 中间件使用）。
-func (s *userLoginServiceImpl) ParseAccessToken(tokenStr string) (userID uint, email string, err error) {
+func jwtAccessKeyFunc(t *jwt.Token) (interface{}, error) {
+	if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+		return nil, fmt.Errorf("unexpected signing method")
+	}
+	return jwtSecret, nil
+}
+
+// parseAccessTokenClaims 校验签名与 claims（供 ParseAccessToken、Logout 等复用）。
+func (s *userLoginServiceImpl) parseAccessTokenClaims(tokenStr string) (*jwtAccessClaims, error) {
 	tokenStr = strings.TrimSpace(tokenStr)
 	if tokenStr == "" {
-		return 0, "", ErrInvalidToken
+		return nil, ErrInvalidToken
 	}
 	var claims jwtAccessClaims
-	token, err := jwt.ParseWithClaims(tokenStr, &claims, func(t *jwt.Token) (interface{}, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method")
-		}
-		return jwtSecret, nil
-	})
+	token, err := jwt.ParseWithClaims(tokenStr, &claims, jwtAccessKeyFunc)
 	if err != nil || !token.Valid {
-		return 0, "", ErrInvalidToken
+		return nil, ErrInvalidToken
+	}
+	return &claims, nil
+}
+
+// ParseAccessToken 校验 JWT 并返回 claims 中的用户标识（供 auth 中间件使用）。
+func (s *userLoginServiceImpl) ParseAccessToken(tokenStr string) (userID uint, email string, err error) {
+	claims, err := s.parseAccessTokenClaims(tokenStr)
+	if err != nil {
+		return 0, "", err
 	}
 	return claims.UserID, claims.Email, nil
+}
+
+// AccessTokenClaims 为 access token 的声明类型别名，便于调用方读取 exp 等字段。
+type AccessTokenClaims = jwtAccessClaims
+
+// ParseAccessTokenClaims 校验 JWT 并返回完整 claims（如需 exp 等字段时使用）。
+func (s *userLoginServiceImpl) ParseAccessTokenClaims(tokenStr string) (*AccessTokenClaims, error) {
+	return s.parseAccessTokenClaims(tokenStr)
+}
+
+// Logout 将当前 access token 加入黑名单，直至 JWT 过期；须为已通过签名校验的 token 字符串。
+func (s *userLoginServiceImpl) Logout(accessToken string) error {
+	claims, err := s.parseAccessTokenClaims(accessToken)
+	if err != nil {
+		return err
+	}
+	if claims.ExpiresAt == nil {
+		return ErrInvalidToken
+	}
+	TokenBlacklist.Revoke(strings.TrimSpace(accessToken), claims.ExpiresAt.Time)
+	return nil
+}
+
+// IsAccessTokenRevoked 判断原始 token 字符串是否已被注销（未过期前有效）。
+func (s *userLoginServiceImpl) IsAccessTokenRevoked(accessToken string) bool {
+	return TokenBlacklist.IsRevoked(strings.TrimSpace(accessToken))
 }
 
 func normalizeEmail(s string) string {

@@ -13,6 +13,7 @@ import (
 const (
 	CtxCurrentUserID    = "currentUserID"
 	CtxCurrentUserEmail = "currentUserEmail"
+	CtxCurrentAccessToken = "currentAccessToken"
 )
 
 // JWTAuth 解析 Authorization: Bearer <token>，将当前用户写入 Gin Context。
@@ -24,13 +25,17 @@ func JWTAuth() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		const prefix = "Bearer "
-		if !strings.HasPrefix(raw, prefix) {
+		tokenStr, ok := extractBearerToken(raw)
+		if !ok {
+			if strings.TrimSpace(raw) == "" {
+				response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "missing authorization", c)
+				c.Abort()
+				return
+			}
 			response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "invalid authorization scheme", c)
 			c.Abort()
 			return
 		}
-		tokenStr := strings.TrimSpace(strings.TrimPrefix(raw, prefix))
 		if tokenStr == "" {
 			response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "missing token", c)
 			c.Abort()
@@ -44,8 +49,32 @@ func JWTAuth() gin.HandlerFunc {
 			return
 		}
 
+		if usersvc.UserLoginService.IsAccessTokenRevoked(tokenStr) {
+			response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "token has been revoked", c)
+			c.Abort()
+			return
+		}
+
 		c.Set(CtxCurrentUserID, uid)
 		c.Set(CtxCurrentUserEmail, email)
+		c.Set(CtxCurrentAccessToken, tokenStr)
 		c.Next()
 	}
+}
+
+// extractBearerToken 解析 Authorization 头，要求严格两段：scheme + token。
+// scheme 按 RFC 不区分大小写，接受 Bearer/bearer 等写法。
+func extractBearerToken(raw string) (string, bool) {
+	parts := strings.Fields(strings.TrimSpace(raw))
+	if len(parts) != 2 {
+		return "", false
+	}
+	if !strings.EqualFold(parts[0], "Bearer") {
+		return "", false
+	}
+	token := strings.TrimSpace(parts[1])
+	if token == "" {
+		return "", false
+	}
+	return token, true
 }

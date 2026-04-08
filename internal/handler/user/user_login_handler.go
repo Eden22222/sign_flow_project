@@ -44,6 +44,29 @@ func (h *userLoginHandlerImpl) Login(c *gin.Context) {
 	response.OkWithData(result, c)
 }
 
+func (h *userLoginHandlerImpl) Logout(c *gin.Context) {
+	v, ok := c.Get(middleware.CtxCurrentAccessToken)
+	if !ok {
+		response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "missing token", c)
+		return
+	}
+	tokenStr, ok := v.(string)
+	if !ok || strings.TrimSpace(tokenStr) == "" {
+		response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "missing token", c)
+		return
+	}
+
+	if err := usersvc.UserLoginService.Logout(tokenStr); err != nil {
+		if errors.Is(err, usersvc.ErrInvalidToken) {
+			response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "invalid or expired token", c)
+			return
+		}
+		response.InternalErrorWithMessage(err.Error(), c)
+		return
+	}
+	response.OkWithMessage("logout success", c)
+}
+
 func (h *userLoginHandlerImpl) Me(c *gin.Context) {
 	v, ok := c.Get(middleware.CtxCurrentUserID)
 	if !ok {
@@ -78,15 +101,15 @@ func respondAuthError(c *gin.Context, err error) {
 	}
 	msg := err.Error()
 	low := strings.ToLower(msg)
-	if strings.Contains(msg, "required") ||
-		strings.Contains(msg, "already registered") ||
-		strings.Contains(low, "at least") {
+	if strings.Contains(low, "required") ||
+		strings.Contains(low, "at least") ||
+		strings.Contains(low, "invalid") {
 		response.BadRequestWithMessage(msg, c)
 		return
 	}
 	if strings.Contains(low, "duplicate key") ||
 		strings.Contains(low, "unique constraint") ||
-		strings.Contains(msg, "already registered") {
+		strings.Contains(low, "already registered") {
 		response.BadRequestWithMessage("registration failed: email conflict, retry", c)
 		return
 	}
