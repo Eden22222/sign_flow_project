@@ -14,7 +14,6 @@ import (
 	"sign_flow_project/internal/router"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type apiResponse struct {
@@ -62,8 +61,6 @@ func TestSubmitSigningThreeSignersFlow(t *testing.T) {
 	if err := gdb.AutoMigrate(&model.WorkflowSignerModel{}); err != nil {
 		t.Fatalf("migrate workflow signer failed: %v", err)
 	}
-
-	cleanupTables(t, gdb)
 
 	engine := gin.New()
 	router.RegisterRoutes(engine)
@@ -125,34 +122,15 @@ func TestSubmitSigningThreeSignersFlow(t *testing.T) {
 	}
 }
 
-func cleanupTables(t *testing.T, gdb *gorm.DB) {
-	t.Helper()
-	if err := gdb.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&model.TaskModel{}).Error; err != nil {
-		t.Fatalf("cleanup tasks failed: %v", err)
-	}
-	if err := gdb.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&model.WorkflowSignerModel{}).Error; err != nil {
-		t.Fatalf("cleanup workflow signers failed: %v", err)
-	}
-	if err := gdb.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&model.WorkflowModel{}).Error; err != nil {
-		t.Fatalf("cleanup workflows failed: %v", err)
-	}
-	if err := gdb.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&model.DocumentModel{}).Error; err != nil {
-		t.Fatalf("cleanup documents failed: %v", err)
-	}
-	// user_code 唯一索引：软删仍会占位，测试清理需物理删除
-	if err := gdb.Unscoped().Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&model.UserModel{}).Error; err != nil {
-		t.Fatalf("cleanup users failed: %v", err)
-	}
-}
-
 // seedWorkflowTestUsers 创建 A/B/C 三个测试用户，并返回 ID 与 token。
 func seedWorkflowTestUsers(t *testing.T, engine *gin.Engine) map[string]testUserSeed {
 	t.Helper()
 	out := make(map[string]testUserSeed, 3)
+	emailSuffix := uniqueTestSuffix()
 	for _, code := range []string{"A", "B", "C"} {
 		rec := performJSON(engine, http.MethodPost, "/api/v1/auth/register", map[string]any{
 			"name":     "User " + code,
-			"email":    strings.ToLower(code) + "@test.local",
+			"email":    strings.ToLower(code) + "-" + emailSuffix + "@test.local",
 			"password": "password123",
 		})
 		if rec.Code != http.StatusOK {

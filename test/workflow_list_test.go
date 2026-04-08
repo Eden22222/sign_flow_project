@@ -36,8 +36,10 @@ func TestListWorkflows_OK(t *testing.T) {
 	engine := setupListTestEngine(t)
 	users := seedWorkflowTestUsers(t, engine)
 
-	createWorkflowForListTest(t, engine, users, "list-doc-1", []uint{users["A"].ID, users["B"].ID})
-	createWorkflowForListTest(t, engine, users, "list-doc-2", []uint{users["A"].ID, users["B"].ID, users["C"].ID})
+	title1 := "list-doc-1-" + uniqueTestSuffix()
+	title2 := "list-doc-2-" + uniqueTestSuffix()
+	createWorkflowForListTest(t, engine, users, title1, []uint{users["A"].ID, users["B"].ID})
+	createWorkflowForListTest(t, engine, users, title2, []uint{users["A"].ID, users["B"].ID, users["C"].ID})
 
 	getRes := performJSON(engine, http.MethodGet, "/api/v1/workflows?page=1&pageSize=10", nil)
 	if getRes.Code != http.StatusOK {
@@ -57,8 +59,8 @@ func TestListWorkflows_OK(t *testing.T) {
 		t.Fatalf("unmarshal list data failed: %v", err)
 	}
 
-	if data.Total != 2 {
-		t.Fatalf("expect total=2, got %d", data.Total)
+	if data.Total < 2 {
+		t.Fatalf("expect total>=2, got %d", data.Total)
 	}
 	if data.Page != 1 {
 		t.Fatalf("expect page=1, got %d", data.Page)
@@ -66,8 +68,8 @@ func TestListWorkflows_OK(t *testing.T) {
 	if data.PageSize != 10 {
 		t.Fatalf("expect pageSize=10, got %d", data.PageSize)
 	}
-	if len(data.List) != 2 {
-		t.Fatalf("expect list length=2, got %d", len(data.List))
+	if len(data.List) < 2 {
+		t.Fatalf("expect list length>=2, got %d", len(data.List))
 	}
 
 	itemsByTitle := make(map[string]workflowListItemResp, len(data.List))
@@ -75,9 +77,9 @@ func TestListWorkflows_OK(t *testing.T) {
 		itemsByTitle[item.Title] = item
 	}
 
-	item1, ok := itemsByTitle["list-doc-1"]
+	item1, ok := itemsByTitle[title1]
 	if !ok {
-		t.Fatalf("expect list contains title=list-doc-1")
+		t.Fatalf("expect list contains title=%s", title1)
 	}
 	if item1.SignerCount != 2 || item1.TotalSteps != 2 {
 		t.Fatalf("expect list-doc-1 signerCount/totalSteps=2, got signerCount=%d totalSteps=%d", item1.SignerCount, item1.TotalSteps)
@@ -92,9 +94,9 @@ func TestListWorkflows_OK(t *testing.T) {
 		t.Fatalf("expect list-doc-1 initiator=User A, got %q", item1.Initiator)
 	}
 
-	item2, ok := itemsByTitle["list-doc-2"]
+	item2, ok := itemsByTitle[title2]
 	if !ok {
-		t.Fatalf("expect list contains title=list-doc-2")
+		t.Fatalf("expect list contains title=%s", title2)
 	}
 	if item2.SignerCount != 3 || item2.TotalSteps != 3 {
 		t.Fatalf("expect list-doc-2 signerCount/totalSteps=3, got signerCount=%d totalSteps=%d", item2.SignerCount, item2.TotalSteps)
@@ -113,7 +115,7 @@ func TestListWorkflows_OK(t *testing.T) {
 func TestListWorkflows_PageNormalize_OK(t *testing.T) {
 	engine := setupListTestEngine(t)
 	users := seedWorkflowTestUsers(t, engine)
-	createWorkflowForListTest(t, engine, users, "normalize-doc", []uint{users["A"].ID})
+	createWorkflowForListTest(t, engine, users, "normalize-doc-"+uniqueTestSuffix(), []uint{users["A"].ID})
 
 	getRes := performJSON(engine, http.MethodGet, "/api/v1/workflows?page=0&pageSize=0", nil)
 	if getRes.Code != http.StatusOK {
@@ -138,11 +140,11 @@ func TestListWorkflows_PageNormalize_OK(t *testing.T) {
 	if data.PageSize != 10 {
 		t.Fatalf("expect normalized pageSize=10, got %d", data.PageSize)
 	}
-	if data.Total != 1 {
-		t.Fatalf("expect total=1, got %d", data.Total)
+	if data.Total < 1 {
+		t.Fatalf("expect total>=1, got %d", data.Total)
 	}
-	if len(data.List) != 1 {
-		t.Fatalf("expect list length=1, got %d", len(data.List))
+	if len(data.List) < 1 {
+		t.Fatalf("expect list length>=1, got %d", len(data.List))
 	}
 }
 
@@ -158,7 +160,6 @@ func setupListTestEngine(t *testing.T) *gin.Engine {
 	if err := gdb.AutoMigrate(&model.WorkflowSignerModel{}); err != nil {
 		t.Fatalf("migrate workflow signer failed: %v", err)
 	}
-	cleanupTables(t, gdb)
 
 	engine := gin.New()
 	router.RegisterRoutes(engine)

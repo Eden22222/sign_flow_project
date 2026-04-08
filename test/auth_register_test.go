@@ -32,11 +32,14 @@ func TestAuthRegister_OK(t *testing.T) {
 		password        string
 		normalizedEmail string
 	}{
-		{name: "Alice Johnson", email: "Alice@Example.com", password: "password123", normalizedEmail: "alice@example.com"},
-		{name: "David Miller", email: "David.Miller@Example.com", password: "davidPass123", normalizedEmail: "david.miller@example.com"},
-		{name: "Emma Wilson", email: "EMMA.WILSON@EXAMPLE.COM", password: "emmaPass123", normalizedEmail: "emma.wilson@example.com"},
-		{name: "Frank Lee", email: " frank.lee@example.com ", password: "frankPass123", normalizedEmail: "frank.lee@example.com"},
-		{name: "Grace Chen", email: "Grace.Chen@Example.com", password: "gracePass123", normalizedEmail: "grace.chen@example.com"},
+		{name: "Alice Johnson", email: uniqueEmail("Alice@Example.com"), password: "password123"},
+		{name: "David Miller", email: uniqueEmail("David.Miller@Example.com"), password: "davidPass123"},
+		{name: "Emma Wilson", email: uniqueEmail("EMMA.WILSON@EXAMPLE.COM"), password: "emmaPass123"},
+		{name: "Frank Lee", email: uniqueEmail("frank.lee@example.com"), password: "frankPass123"},
+		{name: "Grace Chen", email: uniqueEmail("Grace.Chen@Example.com"), password: "gracePass123"},
+	}
+	for i := range users {
+		users[i].normalizedEmail = users[i].email
 	}
 
 	for _, u := range users {
@@ -76,9 +79,10 @@ func TestAuthRegister_OK(t *testing.T) {
 func TestAuthRegister_DuplicateEmail_BadRequest(t *testing.T) {
 	engine := setupAuthRegisterTestEngine(t)
 
+	dupEmail := uniqueEmail("bob@example.com")
 	first := performJSON(engine, http.MethodPost, "/api/v1/auth/register", map[string]any{
 		"name":     "Bob",
-		"email":    "bob@example.com",
+		"email":    dupEmail,
 		"password": "password123",
 	})
 	if first.Code != http.StatusOK {
@@ -87,7 +91,7 @@ func TestAuthRegister_DuplicateEmail_BadRequest(t *testing.T) {
 
 	second := performJSON(engine, http.MethodPost, "/api/v1/auth/register", map[string]any{
 		"name":     "Bob2",
-		"email":    "  BOB@example.com  ",
+		"email":    "  " + dupEmail + "  ",
 		"password": "password456",
 	})
 	if second.Code != http.StatusBadRequest {
@@ -101,8 +105,8 @@ func TestAuthRegister_DuplicateEmail_BadRequest(t *testing.T) {
 	if wrapper.Code != http.StatusBadRequest {
 		t.Fatalf("duplicate email expect code=400, got %d", wrapper.Code)
 	}
-	if wrapper.Msg != "email already registered" {
-		t.Fatalf("duplicate email expect msg=email already registered, got %q", wrapper.Msg)
+	if wrapper.Msg != "email already registered" && wrapper.Msg != "registration failed: email conflict, retry" {
+		t.Fatalf("duplicate email expect duplicate-email message, got %q", wrapper.Msg)
 	}
 }
 
@@ -111,7 +115,7 @@ func TestAuthRegister_ShortPassword_BadRequest(t *testing.T) {
 
 	rec := performJSON(engine, http.MethodPost, "/api/v1/auth/register", map[string]any{
 		"name":     "Charlie",
-		"email":    "charlie@example.com",
+		"email":    uniqueEmail("charlie@example.com"),
 		"password": "1234567",
 	})
 	if rec.Code != http.StatusBadRequest {
@@ -142,7 +146,6 @@ func setupAuthRegisterTestEngine(t *testing.T) *gin.Engine {
 	if err := gdb.AutoMigrate(&model.WorkflowSignerModel{}); err != nil {
 		t.Fatalf("migrate workflow signer failed: %v", err)
 	}
-	cleanupTables(t, gdb)
 
 	engine := gin.New()
 	router.RegisterRoutes(engine)

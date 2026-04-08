@@ -9,7 +9,7 @@ import (
 
 func TestAuthLogout_OK_ThenTokenRevoked(t *testing.T) {
 	engine := setupAuthRegisterTestEngine(t)
-	token := registerAndGetToken(t, engine, "Logout User", "logout-user@test.local", "password123")
+	token := registerAndGetToken(t, engine, "Logout User", uniqueEmail("logout-user@test.local"), "password123")
 
 	logoutRes := performJSONWithAuth(engine, http.MethodPost, "/api/v1/auth/logout", map[string]any{}, token)
 	if logoutRes.Code != http.StatusOK {

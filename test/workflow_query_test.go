@@ -47,7 +47,8 @@ type workflowSignerListResp struct {
 }
 
 func TestGetWorkflowDetail(t *testing.T) {
-	engine, workflowID, users := setupQueryTestEngineAndWorkflow(t)
+	title := "query-test-doc-" + uniqueTestSuffix()
+	engine, workflowID, users := setupQueryTestEngineAndWorkflow(t, title)
 
 	// 推进一步后，当前签署人应变为 B，版本应 +1，状态应为 signing/pending
 	submitRes := performJSONWithAuth(engine, http.MethodPost, "/api/v1/workflows/"+uintToString(workflowID)+"/submit", map[string]any{}, users["A"].Token)
@@ -75,8 +76,8 @@ func TestGetWorkflowDetail(t *testing.T) {
 	if data.WorkflowID != workflowID {
 		t.Fatalf("expect workflowId=%d, got %d", workflowID, data.WorkflowID)
 	}
-	if data.Title != "query-test-doc" {
-		t.Fatalf("expect title=query-test-doc, got %s", data.Title)
+	if data.Title != title {
+		t.Fatalf("expect title=%s, got %s", title, data.Title)
 	}
 	if data.CurrentStep != 2 {
 		t.Fatalf("expect currentStep=2, got %d", data.CurrentStep)
@@ -96,7 +97,7 @@ func TestGetWorkflowDetail(t *testing.T) {
 }
 
 func TestGetWorkflowTasks(t *testing.T) {
-	engine, workflowID, users := setupQueryTestEngineAndWorkflow(t)
+	engine, workflowID, users := setupQueryTestEngineAndWorkflow(t, "query-test-doc-"+uniqueTestSuffix())
 
 	// 先签一步，这样应该有两条 task：A signed, B pending
 	submitRes := performJSONWithAuth(engine, http.MethodPost, "/api/v1/workflows/"+uintToString(workflowID)+"/submit", map[string]any{}, users["A"].Token)
@@ -139,7 +140,7 @@ func TestGetWorkflowTasks(t *testing.T) {
 }
 
 func TestGetWorkflowSigners(t *testing.T) {
-	engine, workflowID, users := setupQueryTestEngineAndWorkflow(t)
+	engine, workflowID, users := setupQueryTestEngineAndWorkflow(t, "query-test-doc-"+uniqueTestSuffix())
 
 	getRes := performJSON(engine, http.MethodGet, "/api/v1/workflows/"+uintToString(workflowID)+"/signers", nil)
 	if getRes.Code != http.StatusOK {
@@ -177,7 +178,7 @@ func TestGetWorkflowSigners(t *testing.T) {
 	}
 }
 
-func setupQueryTestEngineAndWorkflow(t *testing.T) (*gin.Engine, uint, map[string]testUserSeed) {
+func setupQueryTestEngineAndWorkflow(t *testing.T, workflowTitle string) (*gin.Engine, uint, map[string]testUserSeed) {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -191,8 +192,6 @@ func setupQueryTestEngineAndWorkflow(t *testing.T) (*gin.Engine, uint, map[strin
 		t.Fatalf("migrate workflow signer failed: %v", err)
 	}
 
-	cleanupTables(t, gdb)
-
 	engine := gin.New()
 	router.RegisterRoutes(engine)
 	users := seedWorkflowTestUsers(t, engine)
@@ -200,7 +199,7 @@ func setupQueryTestEngineAndWorkflow(t *testing.T) (*gin.Engine, uint, map[strin
 	created := createPendingWorkflowViaDraftAPI(
 		t,
 		engine,
-		"query-test-doc",
+		workflowTitle,
 		users["A"].Token,
 		users["A"].ID,
 		[]uint{users["A"].ID, users["B"].ID, users["C"].ID},
