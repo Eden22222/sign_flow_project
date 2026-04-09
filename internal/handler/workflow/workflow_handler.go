@@ -86,6 +86,12 @@ func (h *workflowHandlerImpl) GetSignFields(c *gin.Context) {
 }
 
 func (h *workflowHandlerImpl) List(c *gin.Context) {
+	userID, ok := currentUserIDFromContext(c)
+	if !ok {
+		response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "invalid current user", c)
+		return
+	}
+
 	page := 1
 	pageSize := 10
 
@@ -107,7 +113,16 @@ func (h *workflowHandlerImpl) List(c *gin.Context) {
 		pageSize = parsedPageSize
 	}
 
-	result, err := workflowsvc.WorkflowQueryService.List(page, pageSize)
+	req := workflowsvc.WorkflowListRequest{
+		UserID:   userID,
+		View:     strings.TrimSpace(c.Query("view")),
+		Status:   strings.TrimSpace(c.Query("status")),
+		Keyword:  c.Query("keyword"),
+		Page:     page,
+		PageSize: pageSize,
+	}
+
+	result, err := workflowsvc.WorkflowQueryService.List(req)
 	if err != nil {
 		respondWorkflowError(c, err)
 		return

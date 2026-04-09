@@ -2,6 +2,7 @@ package dao
 
 import (
 	"errors"
+	"fmt"
 	"sign_flow_project/internal/model"
 
 	log "github.com/sirupsen/logrus"
@@ -123,4 +124,66 @@ func (d *workflowDaoImpl) SelectPage(page int, pageSize int) ([]model.WorkflowMo
 	}
 
 	return workflows, total, nil
+}
+
+// SelectPageByUserFilters 按当前用户视图与筛选条件分页查询 workflow（Count 与列表使用同一套条件，按 created_at DESC）。
+func (d *workflowDaoImpl) SelectPageByUserFilters(userID uint, view string, status string, keyword string, page int, pageSize int) ([]model.WorkflowModel, int64, error) {
+	if view != "initiated" && view != "assigned" {
+		return nil, 0, fmt.Errorf("unsupported workflow list view")
+	}
+
+	db, err := defaultDB()
+	if err != nil {
+		log.Error(err)
+		return nil, 0, err
+	}
+
+	base := d.userListQuery(db, userID, view, status, keyword)
+
+	var total int64
+	if err := base.Count(&total).Error; err != nil {
+		log.Error(err)
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	workflows := make([]model.WorkflowModel, 0)
+	listQ := d.userListQuery(db, userID, view, status, keyword).
+		Order("workflow_models.created_at DESC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&workflows)
+	if listQ.Error != nil {
+		log.Error(listQ.Error)
+		return nil, 0, listQ.Error
+	}
+
+	return workflows, total, nil
+}
+
+func (d *workflowDaoImpl) userListQuery(db *gorm.DB, userID uint, view string, status string, keyword string) *gorm.DB {
+	q := db.Model(&model.WorkflowModel{}).
+		Joins("INNER JOIN document_models ON document_models.id = workflow_models.document_id AND document_models.deleted_at IS NULL").
+		Where("workflow_models.deleted_at IS NULL")
+
+	switch view {
+	case "initiated":
+		q = q.Where("workflow_models.initiator_id = ?", userID)
+	case "assigned":
+		q = q.Where(
+			`EXISTS (SELECT 1 FROM workflow_signer_models AS ws WHERE ws.workflow_id = workflow_models.id AND ws.signer_id = ? AND ws.deleted_at IS NULL)`,
+			userID,
+		)
+	}
+
+	if status != "" {
+		q = q.Where("workflow_models.status = ?", status)
+	}
+
+	if keyword != "" {
+		pattern := "%" + keyword + "%"
+		q = q.Where("(document_models.title ILIKE ? OR document_models.file_name ILIKE ?)", pattern, pattern)
+	}
+
+	return q
 }

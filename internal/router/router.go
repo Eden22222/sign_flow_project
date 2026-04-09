@@ -43,7 +43,7 @@ func RegisterRoutes(r *gin.Engine) {
 	api.PUT("/workflows/:workflowId/fields", middleware.JWTAuth(), workflow.WorkflowHandler.SaveFields)
 	api.POST("/workflows/:workflowId/activate", middleware.JWTAuth(), workflow.WorkflowHandler.Activate)
 
-	api.GET("/workflows", workflow.WorkflowHandler.List)
+	api.GET("/workflows", middleware.JWTAuth(), workflow.WorkflowHandler.List)
 	api.GET("/workflows/:workflowId", workflow.WorkflowHandler.GetDetail)
 	api.GET("/workflows/:workflowId/signing-detail", workflow.WorkflowHandler.GetSigningDetail)
 	api.GET("/workflows/:workflowId/sign-fields", workflow.WorkflowHandler.GetSignFields)

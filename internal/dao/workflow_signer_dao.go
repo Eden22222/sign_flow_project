@@ -67,6 +67,38 @@ func (d *workflowSignerDaoImpl) SelectByWorkflowID(workflowID uint) ([]model.Wor
 	return signers, nil
 }
 
+// CountSignersByWorkflowIDs 按 workflow_id 分组统计签署人数量（用于列表批量组装）。
+func (d *workflowSignerDaoImpl) CountSignersByWorkflowIDs(workflowIDs []uint) (map[uint]int, error) {
+	out := make(map[uint]int)
+	if len(workflowIDs) == 0 {
+		return out, nil
+	}
+	db, err := defaultDB()
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+
+	type row struct {
+		WorkflowID uint  `gorm:"column:workflow_id"`
+		Cnt        int64 `gorm:"column:cnt"`
+	}
+	var rows []row
+	res := db.Model(&model.WorkflowSignerModel{}).
+		Select("workflow_id, COUNT(*) AS cnt").
+		Where("workflow_id IN ?", workflowIDs).
+		Group("workflow_id").
+		Scan(&rows)
+	if res.Error != nil {
+		log.Error(res.Error)
+		return nil, res.Error
+	}
+	for _, r := range rows {
+		out[r.WorkflowID] = int(r.Cnt)
+	}
+	return out, nil
+}
+
 func (d *workflowSignerDaoImpl) SelectByWorkflowIDTx(tx *gorm.DB, workflowID uint) ([]model.WorkflowSignerModel, error) {
 	if tx == nil {
 		return nil, errNilDB

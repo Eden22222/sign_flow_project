@@ -83,6 +83,25 @@ func (d *documentDaoImpl) SelectByID(id uint) (*model.DocumentModel, error) {
 	return &document, nil
 }
 
+// SelectByIDs 批量按主键查询文档（列表等场景批量加载，顺序不保证）。
+func (d *documentDaoImpl) SelectByIDs(ids []uint) ([]model.DocumentModel, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	db, err := defaultDB()
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	var documents []model.DocumentModel
+	res := db.Where("id IN ?", ids).Find(&documents)
+	if res.Error != nil {
+		log.Error(res.Error)
+		return nil, res.Error
+	}
+	return documents, nil
+}
+
 func (d *documentDaoImpl) SelectByIDTx(tx *gorm.DB, id uint) (*model.DocumentModel, error) {
 	if tx == nil {
 		return nil, errNilDB

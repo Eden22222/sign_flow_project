@@ -3,6 +3,7 @@ package test
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"sign_flow_project/internal/infra/db"
@@ -41,7 +42,7 @@ func TestListWorkflows_OK(t *testing.T) {
 	createWorkflowForListTest(t, engine, users, title1, []uint{users["A"].ID, users["B"].ID})
 	createWorkflowForListTest(t, engine, users, title2, []uint{users["A"].ID, users["B"].ID, users["C"].ID})
 
-	getRes := performJSON(engine, http.MethodGet, "/api/v1/workflows?page=1&pageSize=10", nil)
+	getRes := performGETWithAuth(engine, "/api/v1/workflows?view=initiated&page=1&pageSize=10", users["A"].Token)
 	if getRes.Code != http.StatusOK {
 		t.Fatalf("list workflows status=%d body=%s", getRes.Code, getRes.Body.String())
 	}
@@ -60,7 +61,7 @@ func TestListWorkflows_OK(t *testing.T) {
 	}
 
 	if data.Total < 2 {
-		t.Fatalf("expect total>=2, got %d", data.Total)
+		t.Fatalf("expect total>=2 for user A initiated view, got %d", data.Total)
 	}
 	if data.Page != 1 {
 		t.Fatalf("expect page=1, got %d", data.Page)
@@ -117,7 +118,7 @@ func TestListWorkflows_PageNormalize_OK(t *testing.T) {
 	users := seedWorkflowTestUsers(t, engine)
 	createWorkflowForListTest(t, engine, users, "normalize-doc-"+uniqueTestSuffix(), []uint{users["A"].ID})
 
-	getRes := performJSON(engine, http.MethodGet, "/api/v1/workflows?page=0&pageSize=0", nil)
+	getRes := performGETWithAuth(engine, "/api/v1/workflows?view=initiated&page=0&pageSize=0", users["A"].Token)
 	if getRes.Code != http.StatusOK {
 		t.Fatalf("list workflows normalize status=%d body=%s", getRes.Code, getRes.Body.String())
 	}
@@ -141,7 +142,7 @@ func TestListWorkflows_PageNormalize_OK(t *testing.T) {
 		t.Fatalf("expect normalized pageSize=10, got %d", data.PageSize)
 	}
 	if data.Total < 1 {
-		t.Fatalf("expect total>=1, got %d", data.Total)
+		t.Fatalf("expect total>=1 for user A initiated, got %d", data.Total)
 	}
 	if len(data.List) < 1 {
 		t.Fatalf("expect list length>=1, got %d", len(data.List))
@@ -171,3 +172,72 @@ func createWorkflowForListTest(t *testing.T, engine *gin.Engine, users map[strin
 	createWorkflowDraftViaAPI(t, engine, title, users["A"].Token, users["A"].ID, signers)
 }
 
+func performGETWithAuth(engine http.Handler, path string, token string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestListWorkflows_AssignedView_OK(t *testing.T) {
+	engine := setupListTestEngine(t)
+	users := seedWorkflowTestUsers(t, engine)
+	title := "assigned-view-" + uniqueTestSuffix()
+	createWorkflowForListTest(t, engine, users, title, []uint{users["A"].ID, users["B"].ID})
+
+	bRes := performGETWithAuth(engine, "/api/v1/workflows?view=assigned&page=1&pageSize=10", users["B"].Token)
+	if bRes.Code != http.StatusOK {
+		t.Fatalf("list assigned status=%d body=%s", bRes.Code, bRes.Body.String())
+	}
+	var wrapB apiResponse
+	if err := json.Unmarshal(bRes.Body.Bytes(), &wrapB); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if wrapB.Code != http.StatusOK {
+		t.Fatalf("code=%d msg=%s", wrapB.Code, wrapB.Msg)
+	}
+	var dataB workflowListResp
+	if err := json.Unmarshal(wrapB.Data, &dataB); err != nil {
+		t.Fatalf("unmarshal data: %v", err)
+	}
+	if dataB.Total < 1 || len(dataB.List) < 1 {
+		t.Fatalf("expect B sees assigned workflow, total=%d len=%d", dataB.Total, len(dataB.List))
+	}
+	found := false
+	for _, it := range dataB.List {
+		if it.Title == title {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("assigned list should contain title=%s", title)
+	}
+}
+
+func TestListWorkflows_MissingView_BadRequest(t *testing.T) {
+	engine := setupListTestEngine(t)
+	users := seedWorkflowTestUsers(t, engine)
+	rec := performGETWithAuth(engine, "/api/v1/workflows?page=1&pageSize=10", users["A"].Token)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expect HTTP 400 for missing view, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var wrap apiResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &wrap); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if wrap.Code != http.StatusBadRequest {
+		t.Fatalf("expect code=400, got %d msg=%s", wrap.Code, wrap.Msg)
+	}
+}
+
+func TestListWorkflows_NoAuth_Unauthorized(t *testing.T) {
+	engine := setupListTestEngine(t)
+	rec := performGETWithAuth(engine, "/api/v1/workflows?view=initiated&page=1&pageSize=10", "")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expect 401, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
