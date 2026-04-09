@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"sign_flow_project/internal/dao"
 	infradb "sign_flow_project/internal/infra/db"
@@ -47,6 +48,14 @@ func (s *draftWorkflowServiceImpl) CreateWorkflowDraft(req CreateWorkflowDraftRe
 	title := strings.TrimSpace(req.Title)
 	if title == "" {
 		return nil, fmt.Errorf("title is required")
+	}
+	priority, err := normalizeWorkflowPriority(req.Priority)
+	if err != nil {
+		return nil, err
+	}
+	dueAt, err := parseWorkflowDueDate(req.DueDate)
+	if err != nil {
+		return nil, err
 	}
 	fileKey := strings.TrimSpace(req.FileKey)
 	if fileKey == "" {
@@ -148,6 +157,8 @@ func (s *draftWorkflowServiceImpl) CreateWorkflowDraft(req CreateWorkflowDraftRe
 		workflow := &model.WorkflowModel{
 			DocumentID:  document.ID,
 			InitiatorID: req.InitiatorID,
+			DueAt:       dueAt,
+			Priority:    priority,
 			CurrentStep: 1,
 			Status:      model.WorkflowStatusDraft,
 		}
@@ -185,4 +196,37 @@ func (s *draftWorkflowServiceImpl) CreateWorkflowDraft(req CreateWorkflowDraftRe
 		return nil, err
 	}
 	return result, nil
+}
+
+func normalizeWorkflowPriority(raw string) (model.WorkflowPriority, error) {
+	priority := strings.ToLower(strings.TrimSpace(raw))
+	if priority == "" {
+		return model.WorkflowPriorityNormal, nil
+	}
+
+	switch model.WorkflowPriority(priority) {
+	case model.WorkflowPriorityNormal, model.WorkflowPriorityHigh, model.WorkflowPriorityUrgent:
+		return model.WorkflowPriority(priority), nil
+	default:
+		return "", fmt.Errorf("invalid priority")
+	}
+}
+
+func parseWorkflowDueDate(raw string) (*time.Time, error) {
+	dueDate := strings.TrimSpace(raw)
+	if dueDate == "" {
+		return nil, nil
+	}
+
+	layouts := []string{
+		"2006-01-02T15:04",
+		"2006-01-02T15:04:05",
+	}
+	for _, layout := range layouts {
+		if t, err := time.ParseInLocation(layout, dueDate, time.Local); err == nil {
+			return &t, nil
+		}
+	}
+
+	return nil, fmt.Errorf("invalid dueDate")
 }

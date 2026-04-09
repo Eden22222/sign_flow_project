@@ -14,6 +14,14 @@ func FormatWorkflowCreatedAt(t *time.Time) string {
 	return t.Format("2006-01-02 15:04:05")
 }
 
+// FormatWorkflowDueDate 将 workflow 截止时间格式化为分钟精度字符串；nil 返回空串。
+func FormatWorkflowDueDate(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return t.Format("2006-01-02T15:04")
+}
+
 // BuildSignerStepStatus 根据流程状态与当前步，生成签署人步骤在详情中的展示状态。
 func BuildSignerStepStatus(wf *model.WorkflowModel, stepIndex int) string {
 	switch wf.Status {

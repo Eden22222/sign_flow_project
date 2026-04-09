@@ -25,6 +25,8 @@ type WorkflowDetailResult struct {
 	WorkflowID      uint                       `json:"workflowId"`
 	DocumentID      uint                       `json:"documentId"`
 	Title           string                     `json:"title"`
+	DueDate         string                     `json:"dueDate"`
+	Priority        string                     `json:"priority"`
 	CurrentStep     int                        `json:"currentStep"`
 	WorkflowStatus  model.WorkflowStatus       `json:"workflowStatus"`
 	DocumentStatus  model.DocumentStatus       `json:"documentStatus"`
@@ -117,6 +119,8 @@ func (s *workflowQueryServiceImpl) GetDetail(workflowID uint) (*WorkflowDetailRe
 		WorkflowID:      workflow.ID,
 		DocumentID:      document.ID,
 		Title:           document.Title,
+		DueDate:         util.FormatWorkflowDueDate(workflow.DueAt),
+		Priority:        string(workflow.Priority),
 		CurrentStep:     workflow.CurrentStep,
 		WorkflowStatus:  workflow.Status,
 		DocumentStatus:  document.Status,
@@ -159,6 +163,7 @@ type SigningDetailResult struct {
 	DocumentStatus  model.DocumentStatus      `json:"documentStatus"`
 	CreatedAt       string                    `json:"createdAt"`
 	DueDate         string                    `json:"dueDate"`
+	Priority        string                    `json:"priority"`
 	Signers         []SigningDetailSignerItem `json:"signers"`
 	Progress        SigningProgress           `json:"progress"`
 }
@@ -252,7 +257,8 @@ func (s *workflowQueryServiceImpl) GetSigningDetail(workflowID uint) (*SigningDe
 		WorkflowStatus:  workflow.Status,
 		DocumentStatus:  document.Status,
 		CreatedAt:       util.FormatWorkflowCreatedAt(workflow.CreatedAt),
-		DueDate:         "",
+		DueDate:         util.FormatWorkflowDueDate(workflow.DueAt),
+		Priority:        string(workflow.Priority),
 		Signers:         signerItems,
 		Progress: SigningProgress{
 			CompletedCount: completedCount,

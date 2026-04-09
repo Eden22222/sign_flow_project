@@ -94,3 +94,5 @@ htmlcov/
 # =========================
 *.pid
 *.seed
+
+signflow-server

@@ -29,6 +29,8 @@ type WorkflowListItem struct {
 	Title          string `json:"title"`
 	FileName       string `json:"fileName"`
 	DocumentStatus string `json:"documentStatus"`
+	DueDate        string `json:"dueDate"`
+	Priority       string `json:"priority"`
 	Initiator      string `json:"initiator"`
 	SignerCount    int    `json:"signerCount"`
 	CurrentStep    int    `json:"currentStep"`
@@ -149,6 +151,8 @@ func (s *workflowQueryServiceImpl) List(req WorkflowListRequest) (*WorkflowListR
 			Title:          document.Title,
 			FileName:       document.FileName,
 			DocumentStatus: document.Status,
+			DueDate:        util.FormatWorkflowDueDate(workflow.DueAt),
+			Priority:       string(workflow.Priority),
 			Initiator:      initiatorName,
 			SignerCount:    signerCount,
 			CurrentStep:    workflow.CurrentStep,
