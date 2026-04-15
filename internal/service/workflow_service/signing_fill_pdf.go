@@ -20,13 +20,13 @@ import (
 )
 
 type fillSignFieldContext struct {
-	sigField                *model.DocumentFieldModel
-	document                *model.DocumentModel
-	pendingDateFields       []model.DocumentFieldModel
-	today                   string
-	sigValue                string
-	expectedDocVersion      int
-	expectedSourceFileKey   string
+	sigField              *model.DocumentFieldModel
+	document              *model.DocumentModel
+	pendingDateFields     []model.DocumentFieldModel
+	today                 string
+	sigValue              string
+	expectedDocVersion    int
+	expectedSourceFileKey string
 }
 
 // FillSignField 写入签名字段与日期到 PDF（经 pdf-service），成功后落库并记录 document_versions；不推进流程。
@@ -61,6 +61,18 @@ func (s *signingServiceImpl) FillSignField(workflowID, fieldID uint, req FillSig
 
 	nextVersion := ctx.document.CurrentVersion + 1
 	targetKey := file_service.FileService.BuildVersionFileKey(workflowID, ctx.document.ID, nextVersion)
+	log.WithFields(log.Fields{
+		"workflowId":            workflowID,
+		"fieldId":               fieldID,
+		"signerId":              signerID,
+		"documentId":            ctx.document.ID,
+		"currentVersion":        ctx.document.CurrentVersion,
+		"sourceFile":            ctx.document.FilePath,
+		"nextVersion":           nextVersion,
+		"targetFile":            targetKey,
+		"pendingDateFieldCount": len(ctx.pendingDateFields),
+	}).Info("fill sign field precheck success")
+
 	if err := file_service.FileService.EnsureParentDirsForFileKey(targetKey); err != nil {
 		return nil, fmt.Errorf("prepare version directory failed: %w", err)
 	}
@@ -80,6 +92,14 @@ func (s *signingServiceImpl) FillSignField(workflowID, fieldID uint, req FillSig
 		return nil, fmt.Errorf("signed pdf not found after pdf service")
 	}
 	newFileSize := st.Size()
+	log.WithFields(log.Fields{
+		"workflowId":     workflowID,
+		"fieldId":        fieldID,
+		"signerId":       signerID,
+		"targetFile":     targetKey,
+		"outputExists":   true,
+		"outputFileSize": newFileSize,
+	}).Info("fill sign field pdf output ready")
 
 	var result *FillSignFieldResult
 	err = db.Transaction(func(tx *gorm.DB) error {
@@ -210,23 +230,39 @@ func (s *signingServiceImpl) FillSignField(workflowID, fieldID uint, req FillSig
 
 		ft := strings.TrimSpace(strings.ToLower(field.FieldType))
 		result = &FillSignFieldResult{
-			WorkflowID:       workflowID,
-			FieldID:          field.ID,
-			SignerID:         signerID,
-			FieldType:        ft,
-			Status:           string(model.DocumentFieldStatusFilled),
-			Value:            sigValue,
-			AutoFilledDates:  autoFilled,
-			DocumentID:       document.ID,
-			DocumentVersion:  document.CurrentVersion,
-			FilePath:         document.FilePath,
+			WorkflowID:      workflowID,
+			FieldID:         field.ID,
+			SignerID:        signerID,
+			FieldType:       ft,
+			Status:          string(model.DocumentFieldStatusFilled),
+			Value:           sigValue,
+			AutoFilledDates: autoFilled,
+			DocumentID:      document.ID,
+			DocumentVersion: document.CurrentVersion,
+			FilePath:        document.FilePath,
 		}
 		return nil
 	})
 	if err != nil {
+		log.WithError(err).WithFields(log.Fields{
+			"workflowId": workflowID,
+			"fieldId":    fieldID,
+			"signerId":   signerID,
+			"documentId": ctx.document.ID,
+			"targetFile": targetKey,
+		}).Error("fill sign field transaction failed, start cleanup")
 		removeFileWithLog(absTarget, "rollback generated target file after db failure")
 		return nil, err
 	}
+	log.WithFields(log.Fields{
+		"workflowId":        workflowID,
+		"fieldId":           fieldID,
+		"signerId":          signerID,
+		"documentId":        result.DocumentID,
+		"newFilePath":       result.FilePath,
+		"documentVersion":   result.DocumentVersion,
+		"insertedVersionNo": result.DocumentVersion,
+	}).Info("fill sign field committed successfully")
 	return result, nil
 }
 

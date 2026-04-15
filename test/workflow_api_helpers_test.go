@@ -7,10 +7,10 @@ import (
 	"testing"
 )
 
-// uploadSamplePDFFileKey 上传 testdata/sample.pdf，返回 fileKey（供 POST /workflows 使用）。
+// uploadSamplePDFFileKey 上传 storage/test/in.pdf，返回 fileKey（供 POST /workflows 使用）。
 func uploadSamplePDFFileKey(t *testing.T, engine http.Handler) string {
 	t.Helper()
-	pdfPath := filepath.Join("testdata", "sample.pdf")
+	pdfPath := filepath.Join("..", "storage", "test", "in.pdf")
 	rec := performMultipartFile(t, engine, http.MethodPost, "/api/v1/files/upload", "file", pdfPath, "application/pdf")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("upload pdf status=%d body=%s", rec.Code, rec.Body.String())
@@ -42,7 +42,7 @@ func createWorkflowDraftViaAPI(t *testing.T, engine http.Handler, title string, 
 		"dueDate":     "",
 		"priority":    "",
 		"fileKey":     fileKey,
-		"fileName":    "sample.pdf",
+		"fileName":    "in.pdf",
 		"fileType":    "application/pdf",
 		"fileSize":    0,
 		"initiatorId": initiatorID,
