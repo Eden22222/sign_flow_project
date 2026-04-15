@@ -50,7 +50,7 @@ func TestGetWorkflowDetail(t *testing.T) {
 	title := "query-test-doc-" + uniqueTestSuffix()
 	engine, workflowID, users := setupQueryTestEngineAndWorkflow(t, title)
 
-	// 推进一步后，当前签署人应变为 B，版本应 +1，状态应为 signing/pending
+	// 推进一步后，当前签署人应变为 B；文档版本仅在 FillSignField 写 PDF 后递增，Submit 不再 +1
 	submitRes := performJSONWithAuth(engine, http.MethodPost, "/api/v1/workflows/"+uintToString(workflowID)+"/submit", map[string]any{}, users["A"].Token)
 	assertSubmitOK(t, submitRes, "A submit for detail test")
 
@@ -91,8 +91,8 @@ func TestGetWorkflowDetail(t *testing.T) {
 	if data.DocumentStatus != string(model.DocumentStatusSigning) {
 		t.Fatalf("expect documentStatus=%s, got %s", model.DocumentStatusSigning, data.DocumentStatus)
 	}
-	if data.DocumentVersion != 2 {
-		t.Fatalf("expect documentVersion=2, got %d", data.DocumentVersion)
+	if data.DocumentVersion != 1 {
+		t.Fatalf("expect documentVersion=1 (no fill yet), got %d", data.DocumentVersion)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -104,6 +105,24 @@ func (s *fileServiceImpl) UploadPDF(fileHeader *multipart.FileHeader) (*UploadFi
 func (s *fileServiceImpl) AbsPathFromFileKey(fileKey string) string {
 	fileKey = strings.TrimSpace(fileKey)
 	return filepath.Join(storageRootDir, filepath.FromSlash(fileKey))
+}
+
+// BuildVersionFileKey 生成签署版本 PDF 的 fileKey（相对 storage 根目录，使用正斜杠）。
+// 规则：documents/workflows/{workflowId}/{documentId}/versions/v{versionNo}.pdf
+func (s *fileServiceImpl) BuildVersionFileKey(workflowID uint, documentID uint, versionNo int) string {
+	ws := strconv.FormatUint(uint64(workflowID), 10)
+	ds := strconv.FormatUint(uint64(documentID), 10)
+	return path.Join(storageDocsDir, "workflows", ws, ds, "versions", fmt.Sprintf("v%d.pdf", versionNo))
+}
+
+// EnsureParentDirsForFileKey 为给定 fileKey 创建上级目录（不创建文件本身）。
+func (s *fileServiceImpl) EnsureParentDirsForFileKey(fileKey string) error {
+	fileKey = strings.TrimSpace(fileKey)
+	if fileKey == "" {
+		return fmt.Errorf("fileKey is empty")
+	}
+	absDir := filepath.Dir(filepath.Join(storageRootDir, filepath.FromSlash(fileKey)))
+	return os.MkdirAll(absDir, 0o755)
 }
 
 // OpenDocumentByFileKey 将 fileKey 转为绝对路径并校验文件存在且为普通文件。

@@ -166,6 +166,21 @@ func (s *draftWorkflowServiceImpl) CreateWorkflowDraft(req CreateWorkflowDraftRe
 			return err
 		}
 
+		initialVer := &model.DocumentVersionModel{
+			DocumentID: document.ID,
+			WorkflowID: workflow.ID,
+			VersionNo:  1,
+			FilePath:   document.FilePath,
+			FileName:   document.FileName,
+			FileSize:   document.FileSize,
+			SignerID:   0,
+			ActionType: model.DocumentVersionActionInitial,
+			Remark:     "",
+		}
+		if err := dao.DocumentVersionDao.CreateTx(tx, initialVer); err != nil {
+			return err
+		}
+
 		workflowSigners := make([]*model.WorkflowSignerModel, 0, len(signers))
 		for i, signerID := range signers {
 			workflowSigners = append(workflowSigners, &model.WorkflowSignerModel{

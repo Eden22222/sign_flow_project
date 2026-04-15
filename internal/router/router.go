@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"sign_flow_project/internal/handler/document"
 	"sign_flow_project/internal/handler/file"
 	"sign_flow_project/internal/handler/user"
 	"sign_flow_project/internal/handler/workflow"
@@ -50,6 +51,8 @@ func RegisterRoutes(r *gin.Engine) {
 	api.GET("/workflows/:workflowId/tasks", workflow.WorkflowHandler.GetTasks)
 	api.GET("/workflows/:workflowId/signers", workflow.WorkflowHandler.GetSigners)
 	api.GET("/documents/:documentId/preview", file.FileHandler.PreviewDocument)
+	api.GET("/documents/:documentId/versions", middleware.JWTAuth(), document.DocumentVersionHandler.ListByDocument)
+	api.GET("/document-versions/:versionId/preview", document.DocumentVersionHandler.PreviewVersion)
 	api.POST("/workflows/:workflowId/sign-fields/:fieldId/fill", middleware.JWTAuth(), workflow.SigningHandler.FillSignField)
 	api.POST("/workflows/:workflowId/submit", middleware.JWTAuth(), workflow.SigningHandler.Submit)
 }

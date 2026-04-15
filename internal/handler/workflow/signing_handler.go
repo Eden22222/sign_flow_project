@@ -99,7 +99,9 @@ func respondSigningError(c *gin.Context, err error) {
 		strings.Contains(lower, "must") ||
 		strings.Contains(lower, "pending") ||
 		strings.Contains(lower, "does not belong") ||
-		strings.Contains(lower, "not completed") {
+		strings.Contains(lower, "not completed") ||
+		strings.Contains(lower, "retry") ||
+		strings.Contains(lower, "not configured") {
 		response.BadRequestWithMessage(errMsg, c)
 		return
 	}
