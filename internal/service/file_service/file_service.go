@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -143,6 +144,30 @@ func (s *fileServiceImpl) OpenDocumentByFileKey(fileKey string) (string, error) 
 		return "", fmt.Errorf("stored file not found")
 	}
 	return absPath, nil
+}
+
+// ResolveDownloadFileName 优先使用业务文件名，若为空则回退 fileKey 的 basename。
+func (s *fileServiceImpl) ResolveDownloadFileName(preferredName string, fileKey string) string {
+	name := strings.TrimSpace(preferredName)
+	if name != "" {
+		return name
+	}
+	base := strings.TrimSpace(path.Base(strings.TrimSpace(fileKey)))
+	if base != "" && base != "." && base != "/" {
+		return base
+	}
+	return "document.pdf"
+}
+
+// BuildAttachmentContentDisposition 构建附件下载头（兼容常见浏览器 UTF-8 文件名）。
+func (s *fileServiceImpl) BuildAttachmentContentDisposition(fileName string) string {
+	name := strings.TrimSpace(fileName)
+	if name == "" {
+		name = "document.pdf"
+	}
+	safeQuoted := strings.ReplaceAll(name, "\"", "'")
+	escaped := url.PathEscape(name)
+	return fmt.Sprintf("attachment; filename=\"%s\"; filename*=UTF-8''%s", safeQuoted, escaped)
 }
 
 func randomHex(nBytes int) (string, error) {

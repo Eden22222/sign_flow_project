@@ -136,3 +136,21 @@ func (d *taskDaoImpl) SelectByWorkflowID(workflowID uint) ([]model.TaskModel, er
 	}
 	return tasks, nil
 }
+
+func (d *taskDaoImpl) SelectBySignerID(signerID uint) ([]model.TaskModel, error) {
+	db, err := defaultDB()
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	var tasks []model.TaskModel
+	res := db.
+		Where("signer_id = ?", signerID).
+		Order("id DESC").
+		Find(&tasks)
+	if res.Error != nil {
+		log.Error(res.Error)
+		return nil, res.Error
+	}
+	return tasks, nil
+}

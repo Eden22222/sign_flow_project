@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"sign_flow_project/internal/service/file_service"
 	docversvc "sign_flow_project/internal/service/document_version_service"
 	"sign_flow_project/pkg/response"
 
@@ -47,6 +48,26 @@ func (h *documentVersionHandlerImpl) PreviewVersion(c *gin.Context) {
 	}
 
 	c.Header("Content-Type", "application/pdf")
+	c.File(absPath)
+}
+
+// DownloadVersion GET /api/v1/document-versions/:versionId/download
+func (h *documentVersionHandlerImpl) DownloadVersion(c *gin.Context) {
+	versionIDStr := strings.TrimSpace(c.Param("versionId"))
+	versionID64, err := strconv.ParseUint(versionIDStr, 10, 64)
+	if err != nil || versionID64 == 0 {
+		response.BadRequestWithMessage("invalid versionId", c)
+		return
+	}
+
+	absPath, downloadName, err := docversvc.DocumentVersionService.DownloadDocumentVersion(uint(versionID64))
+	if err != nil {
+		respondDocumentVersionError(c, err)
+		return
+	}
+
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", file_service.FileService.BuildAttachmentContentDisposition(downloadName))
 	c.File(absPath)
 }
 

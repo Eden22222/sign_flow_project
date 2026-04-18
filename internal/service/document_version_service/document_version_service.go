@@ -110,3 +110,23 @@ func (s *documentVersionQueryServiceImpl) PreviewDocumentVersion(versionID uint)
 	}
 	return file_service.FileService.OpenDocumentByFileKey(ver.FilePath)
 }
+
+// DownloadDocumentVersion 返回版本文件绝对路径与下载文件名（供 handler 设置下载头）。
+func (s *documentVersionQueryServiceImpl) DownloadDocumentVersion(versionID uint) (string, string, error) {
+	if versionID == 0 {
+		return "", "", fmt.Errorf("versionId is required")
+	}
+	ver, err := dao.DocumentVersionDao.SelectByID(versionID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", "", fmt.Errorf("document version not found")
+		}
+		return "", "", err
+	}
+	absPath, err := file_service.FileService.OpenDocumentByFileKey(ver.FilePath)
+	if err != nil {
+		return "", "", err
+	}
+	downloadName := file_service.FileService.ResolveDownloadFileName(ver.FileName, ver.FilePath)
+	return absPath, downloadName, nil
+}

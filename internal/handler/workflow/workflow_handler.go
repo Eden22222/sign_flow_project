@@ -146,6 +146,22 @@ func (h *workflowHandlerImpl) GetTasks(c *gin.Context) {
 	response.OkWithData(result, c)
 }
 
+func (h *workflowHandlerImpl) GetMyTasks(c *gin.Context) {
+	userID, ok := currentUserIDFromContext(c)
+	if !ok {
+		response.ResultWithStatus(http.StatusUnauthorized, http.StatusUnauthorized, nil, "invalid current user", c)
+		return
+	}
+
+	result, err := workflowsvc.WorkflowQueryService.GetMyTasks(userID)
+	if err != nil {
+		respondWorkflowError(c, err)
+		return
+	}
+
+	response.OkWithData(result, c)
+}
+
 func (h *workflowHandlerImpl) GetSigners(c *gin.Context) {
 	workflowID, ok := parseWorkflowID(c)
 	if !ok {

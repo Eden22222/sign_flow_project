@@ -45,14 +45,17 @@ func RegisterRoutes(r *gin.Engine) {
 	api.POST("/workflows/:workflowId/activate", middleware.JWTAuth(), workflow.WorkflowHandler.Activate)
 
 	api.GET("/workflows", middleware.JWTAuth(), workflow.WorkflowHandler.List)
+	api.GET("/my-tasks", middleware.JWTAuth(), workflow.WorkflowHandler.GetMyTasks)
 	api.GET("/workflows/:workflowId", workflow.WorkflowHandler.GetDetail)
 	api.GET("/workflows/:workflowId/signing-detail", workflow.WorkflowHandler.GetSigningDetail)
 	api.GET("/workflows/:workflowId/sign-fields", workflow.WorkflowHandler.GetSignFields)
 	api.GET("/workflows/:workflowId/tasks", workflow.WorkflowHandler.GetTasks)
 	api.GET("/workflows/:workflowId/signers", workflow.WorkflowHandler.GetSigners)
 	api.GET("/documents/:documentId/preview", file.FileHandler.PreviewDocument)
+	api.GET("/documents/:documentId/download", file.FileHandler.DownloadDocument)
 	api.GET("/documents/:documentId/versions", middleware.JWTAuth(), document.DocumentVersionHandler.ListByDocument)
 	api.GET("/document-versions/:versionId/preview", document.DocumentVersionHandler.PreviewVersion)
+	api.GET("/document-versions/:versionId/download", document.DocumentVersionHandler.DownloadVersion)
 	api.POST("/workflows/:workflowId/sign-fields/:fieldId/fill", middleware.JWTAuth(), workflow.SigningHandler.FillSignField)
 	api.POST("/workflows/:workflowId/submit", middleware.JWTAuth(), workflow.SigningHandler.Submit)
 }

@@ -97,6 +97,24 @@ func (d *workflowDaoImpl) SelectByIDTx(tx *gorm.DB, id uint) (*model.WorkflowMod
 	return &workflow, nil
 }
 
+func (d *workflowDaoImpl) SelectByIDs(ids []uint) ([]model.WorkflowModel, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	db, err := defaultDB()
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	var workflows []model.WorkflowModel
+	res := db.Where("id IN ?", ids).Find(&workflows)
+	if res.Error != nil {
+		log.Error(res.Error)
+		return nil, res.Error
+	}
+	return workflows, nil
+}
+
 func (d *workflowDaoImpl) SelectPage(page int, pageSize int) ([]model.WorkflowModel, int64, error) {
 	db, err := defaultDB()
 	if err != nil {

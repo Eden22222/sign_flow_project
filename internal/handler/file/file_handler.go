@@ -72,3 +72,40 @@ func (h *fileHandlerImpl) PreviewDocument(c *gin.Context) {
 	c.Header("Content-Type", "application/pdf")
 	c.File(absPath)
 }
+
+// DownloadDocument GET /api/v1/documents/:documentId/download，下载当前文档最新版本 PDF。
+func (h *fileHandlerImpl) DownloadDocument(c *gin.Context) {
+	documentIDStr := strings.TrimSpace(c.Param("documentId"))
+	documentID64, err := strconv.ParseUint(documentIDStr, 10, 64)
+	if err != nil || documentID64 == 0 {
+		response.BadRequestWithMessage("invalid documentId", c)
+		return
+	}
+	documentID := uint(documentID64)
+
+	doc, err := dao.DocumentDao.SelectByID(documentID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.NotFoundWithMessage("document not found", c)
+			return
+		}
+		response.InternalErrorWithMessage(err.Error(), c)
+		return
+	}
+
+	absPath, err := file_service.FileService.OpenDocumentByFileKey(doc.FilePath)
+	if err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "empty") || strings.Contains(msg, "not found") {
+			response.NotFoundWithMessage("stored file not found", c)
+			return
+		}
+		response.InternalErrorWithMessage(msg, c)
+		return
+	}
+
+	downloadName := file_service.FileService.ResolveDownloadFileName(doc.FileName, doc.FilePath)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", file_service.FileService.BuildAttachmentContentDisposition(downloadName))
+	c.File(absPath)
+}
