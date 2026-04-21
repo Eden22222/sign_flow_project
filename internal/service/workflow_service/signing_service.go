@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"sign_flow_project/internal/dao"
 	infradb "sign_flow_project/internal/infra/db"
@@ -41,16 +42,16 @@ type FillSignFieldRequest struct {
 }
 
 type FillSignFieldResult struct {
-	WorkflowID       uint   `json:"workflowId"`
-	FieldID          uint   `json:"fieldId"`
-	SignerID         uint   `json:"signerId"`
-	FieldType        string `json:"fieldType"`
-	Status           string `json:"status"`
-	Value            string `json:"value"`
-	AutoFilledDates  int    `json:"autoFilledDates"`
-	DocumentID       uint   `json:"documentId"`
-	DocumentVersion  int    `json:"documentVersion"`
-	FilePath         string `json:"filePath"`
+	WorkflowID      uint   `json:"workflowId"`
+	FieldID         uint   `json:"fieldId"`
+	SignerID        uint   `json:"signerId"`
+	FieldType       string `json:"fieldType"`
+	Status          string `json:"status"`
+	Value           string `json:"value"`
+	AutoFilledDates int    `json:"autoFilledDates"`
+	DocumentID      uint   `json:"documentId"`
+	DocumentVersion int    `json:"documentVersion"`
+	FilePath        string `json:"filePath"`
 }
 
 func validateFillSignFieldMode(mode string) error {
@@ -135,7 +136,9 @@ func (s *signingServiceImpl) Submit(workflowID uint, req SubmitSigningRequest) (
 		}
 
 		// 1. 当前任务改为已签
+		now := time.Now()
 		currentTask.Status = model.TaskStatusSigned
+		currentTask.SignedAt = &now
 		if err := dao.TaskDao.UpdateTx(tx, currentTask); err != nil {
 			return err
 		}

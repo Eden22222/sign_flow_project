@@ -39,6 +39,172 @@ type WorkflowDetailResult struct {
 	FileName        string                     `json:"fileName"`
 	CreatedAt       string                     `json:"createdAt"`
 	Signers         []WorkflowDetailSignerItem `json:"signers"`
+	Timeline        []WorkflowTimelineItem     `json:"timeline"`
+}
+
+type WorkflowTimelineItem struct {
+	Type      string `json:"type"`
+	Title     string `json:"title"`
+	Subtitle  string `json:"subtitle"`
+	Time      string `json:"time"`
+	Status    string `json:"status"`
+	StepIndex int    `json:"stepIndex"`
+}
+
+func signerDisplayName(userMap map[uint]model.UserModel, signerID uint) string {
+	if u, ok := userMap[signerID]; ok {
+		if strings.TrimSpace(u.Name) != "" {
+			return u.Name
+		}
+	}
+	return fmt.Sprintf("Signer %d", signerID)
+}
+
+func appendSignedTimelineItems(
+	timeline []WorkflowTimelineItem,
+	wfSigners []model.WorkflowSignerModel,
+	userMap map[uint]model.UserModel,
+	taskByStepIndex map[int]model.TaskModel,
+	shouldAppend func(stepIndex int) bool,
+) []WorkflowTimelineItem {
+	for i := range wfSigners {
+		ws := wfSigners[i]
+		if !shouldAppend(ws.StepIndex) {
+			continue
+		}
+		name := signerDisplayName(userMap, ws.SignerID)
+		timeline = append(timeline, WorkflowTimelineItem{
+			Type:      "signed",
+			Title:     fmt.Sprintf("%s signed", name),
+			Subtitle:  fmt.Sprintf("Step %d", ws.StepIndex),
+			Time:      signedTimelineTime(ws.StepIndex, taskByStepIndex),
+			Status:    "done",
+			StepIndex: ws.StepIndex,
+		})
+	}
+	return timeline
+}
+
+func signedTimelineTime(stepIndex int, taskByStepIndex map[int]model.TaskModel) string {
+	task, ok := taskByStepIndex[stepIndex]
+	if !ok || task.Status != model.TaskStatusSigned || task.SignedAt == nil {
+		return ""
+	}
+	return util.FormatWorkflowCreatedAt(task.SignedAt)
+}
+
+func completedTimelineTime(taskByStepIndex map[int]model.TaskModel) string {
+	var latestSignedTask *model.TaskModel
+	for _, task := range taskByStepIndex {
+		if task.Status != model.TaskStatusSigned || task.SignedAt == nil {
+			continue
+		}
+		taskCopy := task
+		if latestSignedTask == nil || taskCopy.SignedAt.After(*latestSignedTask.SignedAt) {
+			latestSignedTask = &taskCopy
+		}
+	}
+	if latestSignedTask == nil {
+		return ""
+	}
+	return util.FormatWorkflowCreatedAt(latestSignedTask.SignedAt)
+}
+
+func findWaitingSigner(
+	workflow *model.WorkflowModel,
+	currentSignerID uint,
+	wfSigners []model.WorkflowSignerModel,
+) (model.WorkflowSignerModel, bool) {
+	if currentSignerID != 0 {
+		for i := range wfSigners {
+			if wfSigners[i].SignerID == currentSignerID {
+				return wfSigners[i], true
+			}
+		}
+	}
+	for i := range wfSigners {
+		if wfSigners[i].StepIndex == workflow.CurrentStep {
+			return wfSigners[i], true
+		}
+	}
+	return model.WorkflowSignerModel{}, false
+}
+
+func buildWorkflowTimeline(
+	workflow *model.WorkflowModel,
+	initiatorName string,
+	currentSignerID uint,
+	wfSigners []model.WorkflowSignerModel,
+	userMap map[uint]model.UserModel,
+	taskByStepIndex map[int]model.TaskModel,
+) []WorkflowTimelineItem {
+	timeline := make([]WorkflowTimelineItem, 0, 2+len(wfSigners))
+
+	createdSubtitle := "Created"
+	if strings.TrimSpace(initiatorName) != "" {
+		createdSubtitle = fmt.Sprintf("Created by %s", initiatorName)
+	}
+	timeline = append(timeline, WorkflowTimelineItem{
+		Type:      "created",
+		Title:     "Workflow created",
+		Subtitle:  createdSubtitle,
+		Time:      util.FormatWorkflowCreatedAt(workflow.CreatedAt),
+		Status:    "done",
+		StepIndex: 0,
+	})
+
+	switch workflow.Status {
+	case model.WorkflowStatusDraft:
+		timeline = append(timeline, WorkflowTimelineItem{
+			Type:      "waiting",
+			Title:     "Workflow is in draft",
+			Subtitle:  "Waiting to be activated",
+			Time:      "",
+			Status:    "current",
+			StepIndex: 0,
+		})
+	case model.WorkflowStatusPending:
+		timeline = appendSignedTimelineItems(timeline, wfSigners, userMap, taskByStepIndex, func(stepIndex int) bool {
+			return stepIndex < workflow.CurrentStep
+		})
+		if waitingSigner, ok := findWaitingSigner(workflow, currentSignerID, wfSigners); ok {
+			name := signerDisplayName(userMap, waitingSigner.SignerID)
+			timeline = append(timeline, WorkflowTimelineItem{
+				Type:      "waiting",
+				Title:     fmt.Sprintf("Waiting for %s", name),
+				Subtitle:  fmt.Sprintf("Step %d", waitingSigner.StepIndex),
+				Time:      "",
+				Status:    "current",
+				StepIndex: waitingSigner.StepIndex,
+			})
+		}
+	case model.WorkflowStatusCancelled:
+		timeline = appendSignedTimelineItems(timeline, wfSigners, userMap, taskByStepIndex, func(stepIndex int) bool {
+			return stepIndex < workflow.CurrentStep
+		})
+		timeline = append(timeline, WorkflowTimelineItem{
+			Type:      "completed",
+			Title:     "Workflow cancelled",
+			Subtitle:  "The signing flow was cancelled",
+			Time:      "",
+			Status:    "done",
+			StepIndex: 0,
+		})
+	case model.WorkflowStatusCompleted:
+		timeline = appendSignedTimelineItems(timeline, wfSigners, userMap, taskByStepIndex, func(stepIndex int) bool {
+			return true
+		})
+		timeline = append(timeline, WorkflowTimelineItem{
+			Type:      "completed",
+			Title:     "Workflow completed",
+			Subtitle:  "All signatures completed",
+			Time:      completedTimelineTime(taskByStepIndex),
+			Status:    "done",
+			StepIndex: 0,
+		})
+	}
+
+	return timeline
 }
 
 func (s *workflowQueryServiceImpl) GetDetail(workflowID uint) (*WorkflowDetailResult, error) {
@@ -115,6 +281,25 @@ func (s *workflowQueryServiceImpl) GetDetail(workflowID uint) (*WorkflowDetailRe
 		currentSignerID = currentTask.SignerID
 	}
 
+	tasks, err := dao.TaskDao.SelectByWorkflowID(workflowID)
+	if err != nil {
+		return nil, err
+	}
+	taskByStepIndex := make(map[int]model.TaskModel, len(tasks))
+	for i := range tasks {
+		task := tasks[i]
+		existing, ok := taskByStepIndex[task.StepIndex]
+		if !ok {
+			taskByStepIndex[task.StepIndex] = task
+			continue
+		}
+		if task.Status == model.TaskStatusSigned && task.SignedAt != nil {
+			if existing.SignedAt == nil || task.SignedAt.After(*existing.SignedAt) {
+				taskByStepIndex[task.StepIndex] = task
+			}
+		}
+	}
+
 	return &WorkflowDetailResult{
 		WorkflowID:      workflow.ID,
 		DocumentID:      document.ID,
@@ -133,6 +318,7 @@ func (s *workflowQueryServiceImpl) GetDetail(workflowID uint) (*WorkflowDetailRe
 		FileName:        document.FileName,
 		CreatedAt:       util.FormatWorkflowCreatedAt(workflow.CreatedAt),
 		Signers:         signerItems,
+		Timeline:        buildWorkflowTimeline(workflow, initiatorName, currentSignerID, wfSigners, userMap, taskByStepIndex),
 	}, nil
 }
 
